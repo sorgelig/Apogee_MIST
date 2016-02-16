@@ -96,29 +96,11 @@ end
 
 ////////////////////   MEM   ////////////////////
 
-wire[7:0] mem_o;
-/*
-wire[7:0] vmem_o;
-ram ram
-(
-	.clock(clk_sys),
-
-	.address_a(hlda ? vid_addr[14:0] : addrbus[14:0]),
-	.data_a(cpu_o),
-	.wren_a(hlda ? 1'b0 : !(cpu_wr_n|addrbus[15])),
-	.q_a(mem_o),
-
-	.address_b(vid_addr[14:0]),
-	.data_b(0),
-	.wren_b(0),
-	.q_b(vmem_o)
-);
-*/
-
+wire[7:0] ram_o;
 sram sram( .*,
     .init(!locked),
 	 .clk_sdram(clk_ram),
-	 .dout(mem_o),
+	 .dout(ram_o),
 	 .din(cpu_o),
 	 .addr(hlda ? vid_addr[15:0] : addrbus[15:0]),
 	 .we(hlda ? 1'b0 : !cpu_wr_n),
@@ -139,7 +121,7 @@ wire cpu_inta_n;
 wire inte;
 reg startup;
 
-wire [7:0] cpu_i = (addrbus < 16'hEC00) ? (startup ? rom_o : mem_o) :
+wire [7:0] cpu_i = (addrbus < 16'hEC00) ? (startup ? rom_o : ram_o) :
                (addrbus[15:8] == 8'hEC) ? pit_o  :
                (addrbus[15:8] == 8'hED) ? ppa1_o :
                (addrbus[15:8] == 8'hEE) ? ppa2_o :
@@ -244,13 +226,14 @@ k580vg75 crt
 	.hrtc(hsync), 
 	.pix(pix),
 	.dack(dma_dack[2]), 
-	.ichar(mem_o), 
+	.ichar(ram_o), 
 	.drq(vid_drq), 
 	.irq(vid_irq),
 	.odata(crt_o), 
 	.line(vid_line), 
 	.hilight(vid_hilight), 
-	.gattr(vid_gattr) 
+	.gattr(vid_gattr),
+	.symset(inte)
 );
 
 wire pix;
@@ -322,7 +305,6 @@ k580vv55 ppa2
 ////////////////////   SOUND   ////////////////////
 
 assign AUDIO_R = AUDIO_L;
-
 wire tapein = 1'b0;
 
 wire[7:0] pit_o;

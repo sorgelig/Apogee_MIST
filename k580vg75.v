@@ -33,6 +33,7 @@ module k580vg75
 
 	input        dack,
 	input  [7:0] ichar,
+	input        symset,
 
 	output reg   drq,
 	output reg   irq,
@@ -41,7 +42,7 @@ module k580vg75
 	output       vsp,
 	output       rvv,
 	output       hilight,
-	output [1:0] gattr 
+	output [1:0] gattr
 );
 
 parameter CHAR_WIDTH = 5;
@@ -152,7 +153,7 @@ always @(posedge clk_pix) begin
 		else data <= {data[4:0],1'b0};
 end
 
-font from(.address({ochar[6:0],line[2:0]}), .clock(clk_pix), .q(fdata));
+font from(.address({symset, ochar[6:0],line[2:0]}), .clock(clk_pix), .q(fdata));
 
 reg [6:0] h_cnt;
 reg [6:0] v_cnt;
