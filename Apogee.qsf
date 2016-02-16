@@ -372,6 +372,7 @@ set_global_assignment -name VERILOG_FILE k580vg75.v
 set_global_assignment -name VERILOG_FILE pll.v
 set_global_assignment -name VERILOG_FILE ram.v
 set_global_assignment -name VERILOG_FILE user_io.v
+set_global_assignment -name VERILOG_FILE data_io.v
 set_global_assignment -name VERILOG_FILE sram.v
 set_global_assignment -name VERILOG_FILE rk_kbd.v
 set_global_assignment -name SYSTEMVERILOG_FILE Apogee.sv

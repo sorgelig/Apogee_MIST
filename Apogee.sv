@@ -50,7 +50,7 @@ module Apogee
    output wire        SDRAM_CKE
 );
 
-assign LED = 1;
+assign LED = ~ioctl_download;
 
 wire clk_sys;
 wire clk_ram;
@@ -65,8 +65,8 @@ wire RESET = status[0] | status[2] | buttons[1];
 
 wire ps2_kbd_clk, ps2_kbd_data;
 
-user_io #(.STRLEN(86)) user_io (
-	.conf_str("RADIO86;;T2,Reset"),
+user_io #(.STRLEN(16)) user_io (
+	.conf_str("APOGEE;;T2,Reset"),
 	.SPI_SCK(SPI_SCK),
 	.CONF_DATA0(CONF_DATA0),
 	.SPI_DO(SPI_DO),
@@ -82,30 +82,34 @@ user_io #(.STRLEN(86)) user_io (
 
 ////////////////////   RESET   ////////////////////
 reg[3:0] reset_cnt;
-reg reset_n;
-wire reset = ~reset_n;
+reg reset = 1;
+
+integer initRESET = 100000000;
 
 always @(posedge clk_sys) begin
-	if (!RESET && reset_cnt==4'd14)
-		reset_n <= 1'b1;
+	if ((!RESET && reset_cnt==4'd14) && !initRESET)
+		reset <= 0;
 	else begin
-		reset_n <= 1'b0;
+		if(initRESET && !ioctl_download) initRESET <= initRESET - 1;
+		reset <= 1;
 		reset_cnt <= reset_cnt+4'd1;
 	end
 end
 
 ////////////////////   MEM   ////////////////////
-
 wire[7:0] ram_o;
 sram sram( .*,
     .init(!locked),
 	 .clk_sdram(clk_ram),
 	 .dout(ram_o),
-	 .din(cpu_o),
-	 .addr(hlda ? vid_addr[15:0] : addrbus[15:0]),
-	 .we(hlda ? 1'b0 : !cpu_wr_n),
-	 .rd(hlda ? !dma_oiord_n : cpu_rd)
+	 .din( ioctl_download ? ioctl_data : cpu_o),
+	 .addr(ioctl_download ? ioctl_addr : hlda ? vid_addr       : addr),
+	 .we(  ioctl_download ? ioctl_wr   : hlda ? 1'b0           : !cpu_wr_n && !ppa2_a_acc),
+	 .rd(  ioctl_download ? 1'b0       : hlda ? !dma_oiord_n   : cpu_rd)
 );
+
+wire ppa2_a_acc = ((addrbus[15:8] == 8'hEE) && (addrbus[1:0] == 2'd0));
+wire [24:0] addr = ppa2_a_acc ? {3'b100, extaddr} : addrbus;
 
 wire[7:0] rom_o;
 bios rom(.address({addrbus[11]|startup,addrbus[10:0]}), .clock(clk_sys), .q(rom_o));
@@ -124,6 +128,7 @@ reg startup;
 wire [7:0] cpu_i = (addrbus < 16'hEC00) ? (startup ? rom_o : ram_o) :
                (addrbus[15:8] == 8'hEC) ? pit_o  :
                (addrbus[15:8] == 8'hED) ? ppa1_o :
+				                 ppa2_a_acc ? ram_o  :
                (addrbus[15:8] == 8'hEE) ? ppa2_o :
                (addrbus[15:8] == 8'hEF) ? crt_o  :
                                           rom_o;
@@ -138,9 +143,12 @@ wire dma_we_n  = addrbus[15:8]!=8'hF0|cpu_wr_n;
 
 reg f1,f2;
 reg clk_pix;
+reg clk_io;
 always @(negedge clk_sys) begin
 	reg [2:0] clk_viddiv;
 	reg [5:0] cpu_div = 0;
+
+	clk_io <= ~clk_io;
 
 	clk_viddiv <= clk_viddiv + 1'd1;
 	clk_pix <=0;
@@ -285,6 +293,10 @@ wire[7:0] ppa2_a;
 wire[7:0] ppa2_b;
 wire[7:0] ppa2_c;
 
+reg [3:0] tm9;
+always @(posedge ppa2_c[7]) tm9<=ppa2_b[3:0];
+wire [18:0] extaddr = {tm9, ppa2_c[6:0], ppa2_b};
+
 k580vv55 ppa2
 (
 	.clk(clk_sys), 
@@ -301,9 +313,7 @@ k580vv55 ppa2
 	.opc(ppa2_c)
 );
 
-
 ////////////////////   SOUND   ////////////////////
-
 assign AUDIO_R = AUDIO_L;
 wire tapein = 1'b0;
 
@@ -337,6 +347,31 @@ sigma_delta_dac #(.MSBI(3)) dac_l (
 	.DACin(3'd0 + ppa1_c[0] + pit_out0 + pit_out1 + pit_out2),
 	.DACout(AUDIO_L)
 );
+
+//////////////////   EXTROM   //////////////////
+wire ioctl_wr;
+wire [24:0] ioctl_addr;
+wire [7:0]  ioctl_data;
+
+data_io data_io(
+	.sck(SPI_SCK),
+	.ss(SPI_SS2),
+	.sdi(SPI_DI),
+
+	.force_erase(0),
+	.downloading(ioctl_download),
+	.size(ioctl_size),
+	.index(ioctl_index),
+
+	.clk(clk_io),
+	.wr(ioctl_wr),
+	.a(ioctl_addr),
+	.d(ioctl_data)
+);
+
+wire [24:0] ioctl_size;
+wire        ioctl_download;
+wire [4:0]  ioctl_index;
 
 
 endmodule
