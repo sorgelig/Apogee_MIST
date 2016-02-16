@@ -140,13 +140,14 @@ wire inte;
 reg startup;
 
 wire [7:0] cpu_i = (addrbus < 16'hEC00) ? (startup ? rom_o : mem_o) :
-               (addrbus[15:8] == 8'hEC) ? 8'h00  : // timer
-               (addrbus[15:8] == 8'hED) ? ppa1_o : 
+               (addrbus[15:8] == 8'hEC) ? pit_o  :
+               (addrbus[15:8] == 8'hED) ? ppa1_o :
                (addrbus[15:8] == 8'hEE) ? ppa2_o :
                (addrbus[15:8] == 8'hEF) ? crt_o  :
                                           rom_o;
 
-wire tim_we_n  = addrbus[15:8]!=8'hEC|cpu_wr_n;
+wire pit_we_n  = addrbus[15:8]!=8'hEC|cpu_wr_n;
+wire pit_rd  = ~(addrbus[15:8]!=8'hEC|~cpu_rd);
 wire ppa1_we_n = addrbus[15:8]!=8'hED|cpu_wr_n;
 wire ppa2_we_n = addrbus[15:8]!=8'hEE|cpu_wr_n;
 wire crt_we_n  = addrbus[15:8]!=8'hEF|cpu_wr_n;
@@ -167,7 +168,7 @@ always @(negedge clk_sys) begin
 	end
 	
 	cpu_div <= cpu_div + 1'd1;
-	if(cpu_div == 24) cpu_div <= 0;
+	if(cpu_div == 26) cpu_div <= 0;
 	f1 <= (cpu_div == 0);
 	f2 <= (cpu_div == 2);
 
@@ -320,9 +321,40 @@ k580vv55 ppa2
 
 ////////////////////   SOUND   ////////////////////
 
-assign AUDIO_L = ppa1_c[0];
-assign AUDIO_R = ppa1_c[0];
+assign AUDIO_R = AUDIO_L;
 
 wire tapein = 1'b0;
+
+wire[7:0] pit_o;
+wire pit_out0;
+wire pit_out1;
+wire pit_out2;
+
+k580vi53 pit
+(
+	.clk(clk_sys), 
+	.c0(f2), 
+	.c1(f2), 
+	.c2(f2),
+	.g0(1), 
+	.g1(1), 
+	.g2(1), 
+	.out0(pit_out0), 
+	.out1(pit_out1), 
+	.out2(pit_out2),
+	.addr(addrbus[1:0]), 
+	.rd(pit_rd), 
+	.we_n(pit_we_n), 
+	.idata(cpu_o), 
+	.odata(pit_o)
+);
+
+sigma_delta_dac #(.MSBI(3)) dac_l (
+	.CLK(f2),
+	.RESET(reset),
+	.DACin(3'd0 + ppa1_c[0] + pit_out0 + pit_out1 + pit_out2),
+	.DACout(AUDIO_L)
+);
+
 
 endmodule
