@@ -84,7 +84,7 @@ user_io #(.STRLEN(16)) user_io (
 reg[3:0] reset_cnt;
 reg reset = 1;
 
-integer initRESET = 100000000;
+integer initRESET = 50000000;
 
 always @(posedge clk_sys) begin
 	if ((!RESET && reset_cnt==4'd14) && !initRESET)
@@ -158,7 +158,7 @@ always @(negedge clk_sys) begin
 	end
 	
 	cpu_div <= cpu_div + 1'd1;
-	if(cpu_div == 26) cpu_div <= 0;
+	if(cpu_div == 27) cpu_div <= 0;
 	f1 <= (cpu_div == 0);
 	f2 <= (cpu_div == 2);
 
@@ -245,9 +245,9 @@ k580vg75 crt
 );
 
 wire pix;
-assign VGA_R = {pix,pix,pix,pix,pix,pix};
-assign VGA_G = {pix,pix,pix,pix,pix,pix};
-assign VGA_B = {pix,pix,pix,pix,pix,pix};
+assign VGA_R = {6{pix & ~vid_hilight }};
+assign VGA_G = {6{pix & ~vid_gattr[1]}};
+assign VGA_B = {6{pix & ~vid_gattr[0]}};
 assign VGA_HS = ~(hsync ^ vsync);
 assign VGA_VS = 1;
 
