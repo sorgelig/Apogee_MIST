@@ -90,7 +90,7 @@ user_io #(.STRLEN(35)) user_io
 reg [3:0] reset_cnt;
 reg       reset = 1;
 
-wire    RESET = status[0] | status[2] | buttons[1];
+wire    RESET = status[0] | status[2] | buttons[1] | reset_key[0];
 integer initRESET = 20000000;
 
 always @(posedge clk_sys) begin
@@ -124,23 +124,23 @@ wire[7:0] rom_o;
 bios rom(.address({addrbus[11]|startup,addrbus[10:0]}), .clock(clk_sys), .q(rom_o));
 
 ////////////////////   CPU   ////////////////////
-wire[15:0] addrbus;
-wire[7:0] cpu_o;
-wire cpu_sync;
-wire cpu_rd;
-wire cpu_wr_n;
-wire cpu_int;
-wire cpu_inta_n;
-wire inte;
-reg startup;
+wire [15:0] addrbus;
+wire  [7:0] cpu_o;
+wire        cpu_sync;
+wire        cpu_rd;
+wire        cpu_wr_n;
+wire        cpu_int;
+wire        cpu_inta_n;
+wire        inte;
+reg         startup;
 
-wire [7:0] cpu_i = (addrbus < 16'hEC00) ? (startup ? rom_o : ram_o) :
-               (addrbus[15:8] == 8'hEC) ? pit_o  :
-               (addrbus[15:8] == 8'hED) ? ppa1_o :
-				                 ppa2_a_acc ? ram_o  :
-               (addrbus[15:8] == 8'hEE) ? ppa2_o :
-               (addrbus[15:8] == 8'hEF) ? crt_o  :
-                                          rom_o;
+wire  [7:0] cpu_i = (addrbus < 16'hEC00) ? (startup ? rom_o : ram_o) :
+                (addrbus[15:8] == 8'hEC) ? pit_o  :
+                (addrbus[15:8] == 8'hED) ? ppa1_o :
+				                  ppa2_a_acc ? ram_o  :
+                (addrbus[15:8] == 8'hEE) ? ppa2_o :
+                (addrbus[15:8] == 8'hEF) ? crt_o  :
+                                           rom_o;
 
 wire pit_we_n  = addrbus[15:8]!=8'hEC|cpu_wr_n;
 wire pit_rd  = ~(addrbus[15:8]!=8'hEC|~cpu_rd);
@@ -198,12 +198,12 @@ k580vm80a cpu
 
 
 ////////////////////   VIDEO   ////////////////////
-wire[7:0] crt_o;
-wire[3:0] vid_line;
-wire[15:0] vid_addr;
-wire[3:0] dma_dack;
-wire[7:0] dma_o;
-wire[1:0] vid_gattr;
+wire  [7:0] crt_o;
+wire  [3:0] vid_line;
+wire [15:0] vid_addr;
+wire  [3:0] dma_dack;
+wire  [7:0] dma_o;
+wire  [1:0] vid_gattr;
 wire clk_char,vid_drq,vid_irq,hlda;
 wire vid_hilight;
 wire dma_owe_n,dma_ord_n,dma_oiowe_n,dma_oiord_n;
@@ -304,8 +304,9 @@ assign VGA_G  = scandoubler_disable ? VGA_Gs : VGA_Gd;
 assign VGA_B  = scandoubler_disable ? VGA_Bs : VGA_Bd;
 
 ////////////////////   KBD   ////////////////////
-wire[7:0] kbd_o;
-wire[2:0] kbd_shift;
+wire [7:0] kbd_o;
+wire [2:0] kbd_shift;
+wire [1:0] reset_key;
 
 rk_kbd kbd
 (
@@ -315,14 +316,15 @@ rk_kbd kbd
 	.ps2_dat(ps2_kbd_data),
 	.addr(~ppa1_a), 
 	.odata(kbd_o), 
-	.shift(kbd_shift)
+	.shift(kbd_shift),
+	.reset_key(reset_key)
 );
 
 ////////////////////   SYS PPA   ////////////////////
-wire[7:0] ppa1_o;
-wire[7:0] ppa1_a;
-wire[7:0] ppa1_b;
-wire[7:0] ppa1_c;
+wire [7:0] ppa1_o;
+wire [7:0] ppa1_a;
+wire [7:0] ppa1_b;
+wire [7:0] ppa1_c;
 
 k580vv55 ppa1
 (
@@ -340,10 +342,10 @@ k580vv55 ppa1
 	.opc(ppa1_c)
 );
 
-wire[7:0] ppa2_o;
-wire[7:0] ppa2_a;
-wire[7:0] ppa2_b;
-wire[7:0] ppa2_c;
+wire [7:0] ppa2_o;
+wire [7:0] ppa2_a;
+wire [7:0] ppa2_b;
+wire [7:0] ppa2_c;
 
 reg [3:0] tm9;
 always @(posedge ppa2_c[7]) tm9<=ppa2_b[3:0];
@@ -407,7 +409,7 @@ wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_data;
 wire [24:0] ioctl_size;
 wire        ioctl_download;
-wire [4:0]  ioctl_index;
+wire  [4:0] ioctl_index;
 
 data_io data_io(
 	.sck(SPI_SCK),

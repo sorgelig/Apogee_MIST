@@ -14,14 +14,17 @@
 // Design File: rk_kbd.v
 //
 
-module rk_kbd(
-	input clk,
-	input reset,
-	input ps2_clk,
-	input ps2_dat,
-	input[7:0] addr,
+module rk_kbd
+(
+	input           clk,
+	input           reset,
+	input           ps2_clk,
+	input           ps2_dat,
+	input     [7:0] addr,
 	output reg[7:0] odata,
-	output[2:0] shift);
+	output    [2:0] shift,
+	output reg[1:0] reset_key = 0
+);
 
 reg[7:0] keystate[10:0];
 
@@ -144,8 +147,46 @@ always @(*) begin
 	endcase
 end
 
-always @(posedge clk or posedge reset) begin
-	if (reset) begin
+reg mctrl  = 0;
+reg mshift = 0;
+
+reg [7:0] auto[28] = '{
+	0,0,0,0,0,0,0,0,
+	{1'b1, 7'h26}, // R
+	{1'b0, 7'h26}, // R
+	{1'b1, 7'h02}, // 0
+	{1'b0, 7'h02}, // 0
+	{1'b1, 7'h43}, // ,
+	{1'b0, 7'h43}, // ,
+	{1'b1, 7'h12}, // 1
+	{1'b0, 7'h12}, // 1
+	{1'b1, 7'h02}, // 0
+	{1'b0, 7'h02}, // 0
+	{1'b1, 7'h21}, // enter
+	{1'b0, 7'h21}, // enter
+	0,0,0,0,
+	{1'b1, 7'h74}, // G
+	{1'b0, 7'h74}, // G
+	{1'b1, 7'h21}, // enter
+	{1'b0, 7'h21}  // enter
+};
+
+reg auto_strobe;
+reg [4:0] auto_pos = 31;
+always @(negedge clk) begin
+	integer div;
+	div <= div + 1;
+	auto_strobe <=0;
+	if(div == 2000000) begin 
+		div <=0;
+		auto_strobe <=1;
+	end
+end
+
+always @(posedge clk) begin
+	reg old_reset, old_reset_key;
+	old_reset <= reset;
+	if(!old_reset && reset) begin
 		prev_clk <= 0;
 		shift_reg <= 12'hFFF;
 		extkey <= 0;
@@ -162,20 +203,34 @@ always @(posedge clk or posedge reset) begin
 		keystate[9] <= 0;
 		keystate[10] <= 0;
 	end else begin
-		prev_clk <= {ps2_clk,prev_clk[3:1]};
-		if (prev_clk==4'b1) begin
-			if (kdata[11]==1'b1 && ^kdata[10:2]==1'b1 && kdata[1:0]==2'b1) begin
-				shift_reg <= 12'hFFF;
-				if (kcode==8'hE0) extkey <= 1'b1; else
-				if (kcode==8'hF0) unpress <= 1'b1; else
-				begin
-					extkey <= 0;
-					unpress <= 0;
-					if(r!=4'hF) keystate[r][c] <= ~unpress;
-				end
-			end else
-				shift_reg <= kdata;
+		if(auto_pos >= 28) begin
+			prev_clk <= {ps2_clk,prev_clk[3:1]};
+			if (prev_clk==4'b1) begin
+				if (kdata[11]==1'b1 && ^kdata[10:2]==1'b1 && kdata[1:0]==2'b1) begin
+					shift_reg <= 12'hFFF;
+					if (kcode==8'h14) mctrl <= ~unpress;
+					if (kcode==8'h12) mshift <= ~unpress;
+					if (kcode==8'h59) mshift <= ~unpress;
+					if (kcode==8'h78) reset_key <= {(mshift & ~unpress), ((mctrl | mshift) & ~unpress)};
+					if (kcode==8'hE0) extkey <= 1'b1; else
+					if (kcode==8'hF0) unpress <= 1'b1; else
+					begin
+						extkey <= 0;
+						unpress <= 0;
+						if(r!=4'hF) keystate[r][c] <= ~unpress;
+					end
+				end else
+					shift_reg <= kdata;
+			end
+		end else if(auto_strobe) begin
+			mshift <=0;
+			mctrl  <=0;
+			if(auto[auto_pos]) keystate[auto[auto_pos][3:0]][auto[auto_pos][6:4]] <= auto[auto_pos][7];
+			auto_pos <= auto_pos + 1'd1;
 		end
+
+		if(old_reset_key && !reset_key[1]) auto_pos <=0;
+		old_reset_key <= reset_key[1];
 	end
 end
 
