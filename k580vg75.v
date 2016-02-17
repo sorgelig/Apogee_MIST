@@ -99,6 +99,32 @@ assign rvv = attr[4] ^ (curtype==0 && vcur && chline<=underline);
 assign gattr = attr2[3:2];
 assign hilight = attr2[0];
 
+reg[3:0] d_cnt;
+reg[5:0] data;
+wire[7:0] fdata;
+
+assign pix = data[5];
+assign clk_char = (!d_cnt & clk_pix);
+always @(negedge clk_pix) begin
+	if (d_cnt == CHAR_WIDTH) d_cnt <= 0;
+		else d_cnt <= d_cnt+1'b1;
+end
+
+always @(posedge clk_pix) begin
+	if (!d_cnt) data <= ypos>(maxy+1'd1) ? 6'd0 : lten ? 6'h3F : {6{rvv}} ^ (vsp ? 6'b0 : fdata[5:0]);
+		else data <= {data[4:0],1'b0};
+end
+
+font from(.address({symset, ochar[6:0],line[2:0]}), .clock(clk_pix), .q(fdata));
+
+assign hrtc = (h_cnt > 79);
+assign vrtc = (v_cnt > 309);
+wire hrst = (h_cnt == 78);
+wire vrst = (((10'd310 - l_total)>>1) == v_cnt) & hrst;
+
+reg[9:0] h_cnt;
+reg[9:0] v_cnt;
+
 always @(posedge clk) begin
 	exwe_n <= iwe_n; exrd_n <= ird_n;
 	if (ird_n & ~exrd_n) begin
@@ -198,45 +224,18 @@ always @(posedge clk) begin
 		end else begin
 			drq <= ipos > maxx || ypos > maxy ? 1'b0 : dmae&enable;
 		end
-	end
-end
-
-reg[3:0] d_cnt;
-reg[5:0] data;
-wire[7:0] fdata;
-
-assign pix = data[5];
-assign clk_char = (!d_cnt & clk_pix);
-always @(negedge clk_pix) begin
-	if (d_cnt == CHAR_WIDTH) d_cnt <= 0;
-		else d_cnt <= d_cnt+1'b1;
-end
-
-always @(posedge clk_pix) begin
-	if (!d_cnt) data <= ypos>(maxy+1'd1) ? 6'd0 : lten ? 6'h3F : {6{rvv}} ^ (vsp ? 6'b0 : fdata[5:0]);
-		else data <= {data[4:0],1'b0};
-end
-
-font from(.address({symset, ochar[6:0],line[2:0]}), .clock(clk_pix), .q(fdata));
-
-assign hrtc = (h_cnt > 79);
-assign vrtc = (v_cnt > 308);
-wire hrst = (h_cnt == 78);
-wire vrst = (((10'd310 - l_total)>>1) == v_cnt) & hrst;
-
-reg[9:0] h_cnt;
-reg[9:0] v_cnt;
-
-always @(posedge clk_char) begin
-	if (h_cnt == 88) begin
-		h_cnt <= 0;
-		if (v_cnt == 311 ) begin
-			v_cnt <= 0;
+		
+		//fixed resolution 534x312 with real resolution centered inside
+		if (h_cnt == 88) begin
+			h_cnt <= 0;
+			if (v_cnt == 311 ) begin
+				v_cnt <= 0;
+			end else begin
+				v_cnt <= v_cnt+1'b1;
+			end
 		end else begin
-			v_cnt <= v_cnt+1'b1;
+			h_cnt <= h_cnt+1'b1;
 		end
-	end else begin
-		h_cnt <= h_cnt+1'b1;
 	end
 end
 
