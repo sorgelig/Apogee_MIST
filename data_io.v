@@ -29,6 +29,7 @@ module data_io
 	input         ss,
 	input         sdi,
 
+	input         reset,
 	output        downloading,   // signal indicating an active download
 	output [24:0] size,          // number of bytes in input buffer
    output reg [4:0]  index,     // menu index used to upload the file
@@ -60,9 +61,16 @@ localparam UIO_FILE_INDEX   = 8'h55;
 
 reg downloading_reg = 1'b0;
 reg [15:0] start_addr;
+reg  [4:0] new_index;
+
+always@(posedge reset, posedge downloading_reg) begin
+	if(downloading_reg) index <= new_index;
+		else index <= 0;
+end
 
 // data_io has its own SPI interface to the io controller
 always@(posedge sck, posedge ss) begin
+	reg old_reset;
 	if(ss == 1'b1)
 		cnt <= 5'd0;
 	else begin
@@ -90,7 +98,7 @@ always@(posedge sck, posedge ss) begin
 		if((cmd == UIO_FILE_TX) && (cnt == 15)) begin
 			// prepare 
 			if(sdi) begin
-				if(index == 0) addr <= 25'h200000;
+				if(new_index == 0) addr <= 25'h200000;
 					else addr <= 25'h100000;
 				
 				downloading_reg <= 1'b1; 
@@ -98,7 +106,7 @@ always@(posedge sck, posedge ss) begin
 				downloading_reg <= 1'b0; 
 			end
 		end
-		
+
 		// command 0x54: UIO_FILE_TX
 		if((cmd == UIO_FILE_TX_DAT) && (cnt == 15)) begin
 			if(addr == 25'h100000) begin
@@ -121,7 +129,7 @@ always@(posedge sck, posedge ss) begin
 		
       // expose file (menu) index
       if((cmd == UIO_FILE_INDEX) && (cnt == 15))
-			index <= {sbuf[3:0], sdi};
+			new_index <= {sbuf[3:0], sdi};
 	end
 end
 

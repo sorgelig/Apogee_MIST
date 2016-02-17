@@ -69,9 +69,9 @@ wire [1:0] buttons;
 wire scandoubler_disable;
 wire ps2_kbd_clk, ps2_kbd_data;
 
-user_io #(.STRLEN(35)) user_io 
+user_io #(.STRLEN(57)) user_io 
 (
-	.conf_str(     "APOGEE;RKA;O1,Color,On,Off;T2,Reset"),
+	.conf_str(     "APOGEE;RKA;F3,RK;O1,Color,On,Off;O4,Turbo,Off,On;T2,Reset"),
 	.SPI_SCK(SPI_SCK),
 	.CONF_DATA0(CONF_DATA0),
 	.SPI_DO(SPI_DO),
@@ -85,6 +85,8 @@ user_io #(.STRLEN(35)) user_io
 	.ps2_kbd_clk(ps2_kbd_clk),
 	.ps2_kbd_data(ps2_kbd_data)
 );
+
+wire mode86 = (ioctl_index>1);
 
 ////////////////////   RESET   ////////////////////
 reg [3:0] reset_cnt;
@@ -112,16 +114,19 @@ sram sram
 	.clk_sdram(clk_ram),
 	.dout(ram_o),
 	.din( ioctl_download ? ioctl_data : cpu_o),
-	.addr(ioctl_download ? ioctl_addr : hlda ? vid_addr       : addr),
-	.we(  ioctl_download ? ioctl_wr   : hlda ? 1'b0           : !cpu_wr_n && !ppa2_a_acc),
-	.rd(  ioctl_download ? 1'b0       : hlda ? !dma_oiord_n   : cpu_rd)
+	.addr(ioctl_download ? ioctl_addr : hlda ? vid_addr     : addr),
+	.we(  ioctl_download ? ioctl_wr   : hlda ? 1'b0         : !cpu_wr_n && !ppa2_a_acc),
+	.rd(  ioctl_download ? 1'b0       : hlda ? !dma_oiord_n : cpu_rd)
 );
 
 wire ppa2_a_acc = ((addrbus[15:8] == 8'hEE) && (addrbus[1:0] == 2'd0));
-wire [24:0] addr = ppa2_a_acc ? {3'b100, extaddr} : addrbus;
+wire [24:0] addr = (ppa2_a_acc & !mode86) ? {3'b100, extaddr} : addrbus;
 
-wire[7:0] rom_o;
-bios rom(.address({addrbus[11]|startup,addrbus[10:0]}), .clock(clk_sys), .q(rom_o));
+wire [7:0] rom_o;
+bios   rom(.address({addrbus[11]|startup,addrbus[10:0]}), .clock(clk_sys), .q(rom_o));
+
+wire [7:0] rom86_o;
+bios86 rom86(.address(addrbus[10:0]), .clock(clk_sys), .q(rom86_o));
 
 ////////////////////   CPU   ////////////////////
 wire [15:0] addrbus;
@@ -134,21 +139,29 @@ wire        cpu_inta_n;
 wire        inte;
 reg         startup;
 
-wire  [7:0] cpu_i = (addrbus < 16'hEC00) ? (startup ? rom_o : ram_o) :
-                (addrbus[15:8] == 8'hEC) ? pit_o  :
-                (addrbus[15:8] == 8'hED) ? ppa1_o :
-				                  ppa2_a_acc ? ram_o  :
-                (addrbus[15:8] == 8'hEE) ? ppa2_o :
-                (addrbus[15:8] == 8'hEF) ? crt_o  :
-                                           rom_o;
+wire  [7:0] cpuA_i = (addrbus < 16'hEC00) ? (startup ? rom_o : ram_o) :
+                 (addrbus[15:8] == 8'hEC) ? pit_o  :
+                 (addrbus[15:8] == 8'hED) ? ppa1_o :
+				                   ppa2_a_acc ? ram_o  :
+                 (addrbus[15:8] == 8'hEE) ? ppa2_o :
+                 (addrbus[15:8] == 8'hEF) ? crt_o  :
+                                            rom_o;
 
-wire pit_we_n  = addrbus[15:8]!=8'hEC|cpu_wr_n;
-wire pit_rd  = ~(addrbus[15:8]!=8'hEC|~cpu_rd);
-wire ppa1_we_n = addrbus[15:8]!=8'hED|cpu_wr_n;
-wire ppa2_we_n = addrbus[15:8]!=8'hEE|cpu_wr_n;
-wire crt_we_n  = addrbus[15:8]!=8'hEF|cpu_wr_n;
-wire crt_rd_n  = addrbus[15:8]!=8'hEF|~cpu_rd;
-wire dma_we_n  = addrbus[15:8]!=8'hF0|cpu_wr_n;
+wire  [7:0] cpu86_i=       (!addrbus[15]) ? (startup ? rom86_o : ram_o) :
+                 (addrbus[15:13]==3'b100) ? ppa1_o :
+                 (addrbus[15:13]==3'b110) ? crt_o  :
+                 (addrbus[15:13]==3'b111) ? rom86_o:
+					                             8'd0;
+
+wire [7:0] cpu_i = mode86 ? cpu86_i : cpuA_i;
+
+wire pit_we_n  = mode86 ? 1'b1                            : addrbus[15:8]!=8'hEC|cpu_wr_n;
+wire pit_rd    = mode86 ? 1'b0                            : addrbus[15:8]==8'hEC&cpu_rd;
+wire ppa1_we_n = mode86 ? addrbus[15:13]!=3'b100|cpu_wr_n : addrbus[15:8]!=8'hED|cpu_wr_n;
+wire ppa2_we_n = mode86 ? 1'b1                            : addrbus[15:8]!=8'hEE|cpu_wr_n;
+wire crt_we_n  = mode86 ? addrbus[15:13]!=3'b110|cpu_wr_n : addrbus[15:8]!=8'hEF|cpu_wr_n;
+wire crt_rd_n  = mode86 ? addrbus[15:13]!=3'b110|~cpu_rd  : addrbus[15:8]!=8'hEF|~cpu_rd;
+wire dma_we_n  = mode86 ? addrbus[15:13]!=3'b111|cpu_wr_n : addrbus[15:8]!=8'hF0|cpu_wr_n;
 
 reg f1,f2;
 reg clk_pix, clk_pix2x;
@@ -169,7 +182,7 @@ always @(negedge clk_sys) begin
 	clk_pix2x <= ((clk_viddiv == 5) || (clk_viddiv == 2));
 
 	cpu_div <= cpu_div + 1'd1;
-	if(cpu_div == 27) cpu_div <= 0;
+	if(cpu_div == (status[4] ? 13 : 27)) cpu_div <= 0;
 	f1 <= (cpu_div == 0);
 	f2 <= (cpu_div == 2);
 
@@ -250,7 +263,7 @@ k580vg75 crt
 	.line(vid_line), 
 	.hilight(vid_hilight), 
 	.gattr(vid_gattr),
-	.symset(inte)
+	.symset(mode86 ? 1'b0 : inte)
 );
 
 wire pix;
@@ -368,7 +381,6 @@ k580vv55 ppa2
 );
 
 ////////////////////   SOUND   ////////////////////
-assign AUDIO_R = AUDIO_L;
 wire tapein = 1'b0;
 
 wire[7:0] pit_o;
@@ -395,11 +407,12 @@ k580vi53 pit
 	.odata(pit_o)
 );
 
+assign AUDIO_R = AUDIO_L;
 sigma_delta_dac #(.MSBI(2)) dac
 (
-	.CLK(f2),
+	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin(2'd0 + ppa1_c[0] + pit_out0 + pit_out1 + pit_out2),
+	.DACin(2'd0 + ppa1_c[0] + (mode86 ? inte : pit_out0 + pit_out1 + pit_out2)),
 	.DACout(AUDIO_L)
 );
 
@@ -419,6 +432,7 @@ data_io data_io(
 	.downloading(ioctl_download),
 	.size(ioctl_size),
 	.index(ioctl_index),
+	.reset(reset),
 
 	.clk(clk_io),
 	.wr(ioctl_wr),
