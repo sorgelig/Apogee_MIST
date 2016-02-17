@@ -58,15 +58,13 @@ reg[6:0] curx;
 reg[5:0] cury;
 
 wire[6:0] maxx = init0[6:0];
-wire[5:0] maxy = init1[5:0];
+wire[6:0] maxy = {1'b0, init1[5:0]};
 wire[3:0] underline  = init2[7:4];
 wire[3:0] charheight = init2[3:0];
 wire linemode = init3[7];
 wire fillattr = init3[6]; // 0 - transparent, 1 - normal fill
 wire curblink = init3[5]; // 0 - blink
 wire curtype  = init3[4]; // 0 - block, 1 - underline
-wire [6:0] hrsz = {1'b0, init3[3:0], 1'b1};
-wire [5:0] vrsz = {4'd0, init1[7:6]};
 
 reg[6:0] ochar;
 
@@ -78,14 +76,16 @@ reg[3:0] iposf;
 reg[3:0] oposf;
 reg[6:0] ipos;
 reg[7:0] opos;
-reg[5:0] ypos;
+reg[6:0] ypos;
 reg[4:0] frame;
-reg lineff,exwe_n,exrd_n,exvrtc,exhrtc,err,vspfe;
+reg lineff,exwe_n,exrd_n,err,vspfe;
 reg[6:0] fifo0[15:0];
 reg[6:0] fifo1[15:0];
 reg[7:0] buf0[79:0];
 reg[7:0] buf1[79:0];
 reg[2:0] pstate;
+reg[9:0] l_cnt;
+reg[9:0] l_total;
 reg istate;
 
 wire vcur = opos=={1'b0,curx} && ypos==cury && (frame[3]|curblink);
@@ -129,8 +129,8 @@ always @(posedge clk) begin
 		end
 	end
 	if (clk_char) begin
-		exvrtc <= vrtc; exhrtc <= hrtc;
 		if (vrst) begin
+			l_cnt <= 0;
 			chline <= 0; ypos <= 0; dmae <= 1'b1; vspfe <= 0;
 			iposf <= 0; ipos <= 0; oposf <= 0; opos <= 0;
 			attr <= 0; exattr <= 0; frame <= frame + 1'b1;
@@ -145,6 +145,8 @@ always @(posedge clk) begin
 				chline <= chline + 1'b1;
 				attr <= exattr;
 			end
+			if(ypos <= maxy) l_cnt <= l_cnt + 1'd1;
+			if(ypos == (maxy+1'b1)) l_total <= l_cnt;
 			oposf <= 0; opos <= {2'b0,maxx[6:1]}+8'hD0;
 		end else if (ypos!=0) begin
 			attr2 <= attr;
@@ -211,16 +213,16 @@ always @(negedge clk_pix) begin
 end
 
 always @(posedge clk_pix) begin
-	if (!d_cnt) data <= lten ? 6'h3F : vsp ? 6'b0 : rvv ? ~fdata[5:0] : fdata[5:0];
+	if (!d_cnt) data <= ypos>(maxy+1'd1) ? 6'd0 : lten ? 6'h3F : vsp ? 6'b0 : rvv ? ~fdata[5:0] : fdata[5:0];
 		else data <= {data[4:0],1'b0};
 end
 
 font from(.address({symset, ochar[6:0],line[2:0]}), .clock(clk_pix), .q(fdata));
 
 assign hrtc = (h_cnt > 79);
-assign vrtc = (v_cnt >= 304 && v_cnt < 307);
+assign vrtc = (v_cnt > 308);
 wire hrst = (h_cnt == 78);
-wire vrst = (v_cnt == 15) & hrst;
+wire vrst = (((10'd310 - l_total)>>1) == v_cnt) & hrst;
 
 reg[9:0] h_cnt;
 reg[9:0] v_cnt;
@@ -238,43 +240,4 @@ always @(posedge clk_char) begin
 	end
 end
 
-/*
-
-reg[1:0] state;
-reg[9:0] h_cnt;
-reg[9:0] v_cnt;
-reg[2:0] d_cnt;
-reg[5:0] data;
-wire[7:0] fdata;
-
-assign hrtc = h_cnt >= 478 && h_cnt < 510 ? 1'b0 : 1'b1;
-assign vrtc = v_cnt >= 304 && v_cnt < 307 ? 1'b0 : 1'b1;
-assign clk_char = !d_cnt && clk_pix;
-
-assign pix = data[5];
-font from(.address({symset, ichar[6:0],line[2:0]}), .clock(clk), .q(fdata));
-
-always @(posedge clk_pix)
-begin
-		if (d_cnt == CHAR_WIDTH) begin
-			data <= lten ? 6'h3F : vsp ? 6'b0 : fdata[5:0]^{6{rvv}};
-		end else
-			data <= {data[4:0],1'b0};
-		if (h_cnt+1'b1 == 511) begin
-			h_cnt <= 0; d_cnt <= 0;
-			if (v_cnt+1'b1 == 311 ) begin
-				v_cnt <= 0;
-			end else begin
-				v_cnt <= v_cnt+1'b1;
-			end
-		end else begin
-			h_cnt <= h_cnt+1'b1;
-			if (d_cnt == CHAR_WIDTH) begin
-				d_cnt <= 0;
-			end else
-				d_cnt <= d_cnt+1'b1;
-		end
-end
-
-*/
 endmodule

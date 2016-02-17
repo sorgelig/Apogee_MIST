@@ -369,6 +369,8 @@ set_global_assignment -name VERILOG_FILE k580vv55.v
 set_global_assignment -name VERILOG_FILE k580vt57.v
 set_global_assignment -name VERILOG_FILE k580vm80a.v
 set_global_assignment -name VERILOG_FILE k580vg75.v
+set_global_assignment -name VERILOG_FILE scandoubler.v
+set_global_assignment -name VERILOG_FILE osd.v
 set_global_assignment -name VERILOG_FILE pll.v
 set_global_assignment -name VERILOG_FILE ram.v
 set_global_assignment -name VERILOG_FILE user_io.v

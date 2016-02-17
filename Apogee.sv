@@ -60,9 +60,7 @@ pll pll(.locked(locked), .inclk0(CLOCK_27[0]), .c0(clk_ram), .c1(SDRAM_CLK), .c2
 
 wire [7:0] status;
 wire [1:0] buttons;
-
-wire RESET = status[0] | status[2] | buttons[1];
-
+wire scandoubler_disable;
 wire ps2_kbd_clk, ps2_kbd_data;
 
 user_io #(.STRLEN(16)) user_io (
@@ -74,17 +72,20 @@ user_io #(.STRLEN(16)) user_io (
 	
 	.status(status),
 	.buttons(buttons),
+	.scandoubler_disable(scandoubler_disable),
 	
 	.ps2_clk(clk_ps2),
 	.ps2_kbd_clk(ps2_kbd_clk),
 	.ps2_kbd_data(ps2_kbd_data)
 );
 
+wire RESET = status[0] | status[2] | buttons[1];
+
 ////////////////////   RESET   ////////////////////
 reg[3:0] reset_cnt;
 reg reset = 1;
 
-integer initRESET = 50000000;
+integer initRESET = 20000000;
 
 always @(posedge clk_sys) begin
 	if ((!RESET && reset_cnt==4'd14) && !initRESET)
@@ -142,7 +143,7 @@ wire crt_rd_n  = addrbus[15:8]!=8'hEF|~cpu_rd;
 wire dma_we_n  = addrbus[15:8]!=8'hF0|cpu_wr_n;
 
 reg f1,f2;
-reg clk_pix;
+reg clk_pix, clk_pix2x;
 reg clk_io;
 always @(negedge clk_sys) begin
 	reg [2:0] clk_viddiv;
@@ -156,7 +157,9 @@ always @(negedge clk_sys) begin
 		clk_viddiv <=0;
 		clk_pix <=1;
 	end
-	
+
+	clk_pix2x <= ((clk_viddiv == 5) || (clk_viddiv == 2));
+
 	cpu_div <= cpu_div + 1'd1;
 	if(cpu_div == 27) cpu_div <= 0;
 	f1 <= (cpu_div == 0);
@@ -196,8 +199,6 @@ wire[1:0] vid_gattr;
 wire clk_char,vid_drq,vid_irq,hlda;
 wire vid_hilight;
 wire dma_owe_n,dma_ord_n,dma_oiowe_n,dma_oiord_n;
-
-wire hsync, vsync;
 wire hrq;
 
 k580vt57 dma
@@ -245,11 +246,53 @@ k580vg75 crt
 );
 
 wire pix;
-assign VGA_R = {6{pix & ~vid_hilight }};
-assign VGA_G = {6{pix & ~vid_gattr[1]}};
-assign VGA_B = {6{pix & ~vid_gattr[0]}};
-assign VGA_HS = ~(hsync ^ vsync);
-assign VGA_VS = 1;
+wire hsync, vsync;
+
+osd osd 
+(
+	.*,
+	.VGA_Rx({6{pix & ~vid_hilight }}),
+	.VGA_Gx({6{pix & ~vid_gattr[1]}}),
+	.VGA_Bx({6{pix & ~vid_gattr[0]}}),
+	.VGA_R(VGA_Rs),
+	.VGA_G(VGA_Gs),
+	.VGA_B(VGA_Bs),
+	.OSD_HS(hsync),
+	.OSD_VS(vsync)
+);
+
+wire [5:0] VGA_Rs;
+wire [5:0] VGA_Gs;
+wire [5:0] VGA_Bs;
+
+scandoubler scandoubler (
+	.clk_x2(clk_pix2x),
+
+	.scanlines(0),
+		    
+	.hs_in(hsync),
+	.vs_in(vsync),
+	.r_in(VGA_Rs),
+	.g_in(VGA_Gs),
+	.b_in(VGA_Bs),
+
+	.hs_out(hsyncd),
+	.vs_out(vsyncd),
+	.r_out(VGA_Rd),
+	.g_out(VGA_Gd),
+	.b_out(VGA_Bd)
+);
+
+wire hsyncd, vsyncd;
+wire [5:0] VGA_Rd;
+wire [5:0] VGA_Gd;
+wire [5:0] VGA_Bd;
+
+assign VGA_HS = scandoubler_disable ? ~(hsync ^ vsync) : ~hsyncd;
+assign VGA_VS = scandoubler_disable ? 1'b1 : ~vsyncd;
+assign VGA_R  = scandoubler_disable ? VGA_Rs : VGA_Rd;
+assign VGA_G  = scandoubler_disable ? VGA_Gs : VGA_Gd;
+assign VGA_B  = scandoubler_disable ? VGA_Bs : VGA_Bd;
 
 ////////////////////   KBD   ////////////////////
 wire[7:0] kbd_o;
