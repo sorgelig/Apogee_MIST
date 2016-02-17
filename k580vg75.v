@@ -52,8 +52,6 @@ reg[7:0] init1;
 reg[7:0] init2;
 reg[7:0] init3;
 reg enable,inte,dmae;
-reg[2:0] dmadelay;
-reg[1:0] dmalen;
 reg[6:0] curx;
 reg[5:0] cury;
 
@@ -134,7 +132,7 @@ always @(posedge clk) begin
 		if (iaddr) begin
 			case (idata[7:5])
 			3'b000: {enable,inte,pstate} <= 5'b00001;
-			3'b001: {enable,inte,dmadelay,dmalen} <= {2'b11,idata[4:0]};
+			3'b001: {enable,inte} <= 2'b11;
 			3'b010: enable <= 0;
 			3'b011: pstate <= 3'b101;
 			3'b100: pstate <= 3'b101;
@@ -228,11 +226,8 @@ always @(posedge clk) begin
 		//fixed resolution 534x312 with real resolution centered inside
 		if (h_cnt == 88) begin
 			h_cnt <= 0;
-			if (v_cnt == 311 ) begin
-				v_cnt <= 0;
-			end else begin
-				v_cnt <= v_cnt+1'b1;
-			end
+			if (v_cnt == 311) v_cnt <= 0;
+				else v_cnt <= v_cnt+1'b1;
 		end else begin
 			h_cnt <= h_cnt+1'b1;
 		end

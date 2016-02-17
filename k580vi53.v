@@ -15,23 +15,34 @@
 //
 // Interval timer k580vi53 design file of Bashkiria-2M replica.
 
-module k580vi53(input clk,
-	input c0, input c1, input c2,
-	input g0, input g1, input g2,
-	output out0, output out1, output out2,
-	input[1:0] addr, input rd, input we_n, input[7:0] idata, output reg[7:0] odata);
+module k580vi53
+(
+	input        clk,
+	input        c0, 
+	input        c1, 
+	input        c2,
+	input        g0, 
+	input        g1, 
+	input        g2,
+	output       out0, 
+	output       out1, 
+	output       out2,
+	input  [1:0] addr, 
+	input        rd, 
+	input        we_n, 
+	input  [7:0] idata, 
+	output [7:0] odata
+);
+
 
 wire[7:0] odata0;
 wire[7:0] odata1;
 wire[7:0] odata2;
+reg [7:0] data;
 
-always @(*)
-	case (addr)
-	2'b00: odata = odata0;
-	2'b01: odata = odata1;
-	2'b10: odata = odata2;
-	2'b11: odata = 0;
-	endcase
+assign odata = (addr == 0) ? odata0 :
+               (addr == 1) ? odata1 :
+               (addr == 2) ? odata2 : 8'd0;
 
 k580vi53channel ch0(.clk(clk), .c(c0), .gate(g0), .cout(out0), .addr(&addr), .rd(rd && addr==2'b00), .we_n(we_n || (addr!=2'b00 && (addr!=2'b11 || idata[7:6]!=2'b00))), .idata(idata), .odata(odata0));
 k580vi53channel ch1(.clk(clk), .c(c1), .gate(g1), .cout(out1), .addr(&addr), .rd(rd && addr==2'b01), .we_n(we_n || (addr!=2'b01 && (addr!=2'b11 || idata[7:6]!=2'b01))), .idata(idata), .odata(odata1));
@@ -39,51 +50,64 @@ k580vi53channel ch2(.clk(clk), .c(c2), .gate(g2), .cout(out2), .addr(&addr), .rd
 
 endmodule
 
-module k580vi53channel(input clk, input c, input gate, output reg cout,
-	input addr, input rd, input we_n, input[7:0] idata, output reg[7:0] odata);
+module k580vi53channel
+(
+	input clk, 
+	input c, 
+	input gate, 
+	input addr, 
+	input rd, 
+	input we_n, 
+	input     [7:0] idata, 
+	output reg[7:0] odata,
+	output reg      cout
+);
 
-reg[5:0]  mode;
-reg[15:0] init;
-reg[15:0] cntlatch;
-reg[15:0] counter;
-reg[15:0] sub1;
-reg[15:0] sub2;
-reg enabled;
-reg latched;
-reg loaded;
-reg ff;
-reg first;
-reg done;
-reg exc;
-reg exgate;
-reg exrd;
-reg exwe_n;
+reg  [5:0]  mode;
+reg [15:0] init;
+reg [15:0] cntlatch;
+reg [15:0] counter;
+reg [15:0] sub1;
+reg [15:0] sub2;
+reg        enabled;
+reg        latched;
+reg        loaded;
+reg        ff;
+reg        first;
+reg        done;
+reg        exc;
+reg        exgate;
+reg        exrd;
+reg        exwe_n;
 
-always @(*)
+always @(*) begin
 	case ({latched,ff})
-	2'b00: odata = counter[7:0];
-	2'b01: odata = counter[15:8];
-	2'b10: odata = cntlatch[7:0];
-	2'b11: odata = cntlatch[15:8];
+		2'b00: odata = counter[7:0];
+		2'b01: odata = counter[15:8];
+		2'b10: odata = cntlatch[7:0];
+		2'b11: odata = cntlatch[15:8];
 	endcase
+end
 
-always @(*)
+always @(*) begin
 	casex ({mode[0],|counter[15:12],|counter[11:8],|counter[7:4],|counter[3:0]})
-	5'b10000: sub1 = 16'h9999;
-	5'b11000: sub1 = 16'hF999;
-	5'b1x100: sub1 = 16'hFF99;
-	5'b1xx10: sub1 = 16'hFFF9;
-	default:  sub1 = 16'hFFFF;
+		5'b10000: sub1 = 16'h9999;
+		5'b11000: sub1 = 16'hF999;
+		5'b1x100: sub1 = 16'hFF99;
+		5'b1xx10: sub1 = 16'hFFF9;
+		default:  sub1 = 16'hFFFF;
 	endcase
+end
 
-always @(*)
+always @(*) begin
 	casex ({mode[0],|counter[15:12],|counter[11:8],|counter[7:4],|counter[3:1]})
-	5'b10000: sub2 = 16'h9998;
-	5'b11000: sub2 = 16'hF998;
-	5'b1x100: sub2 = 16'hFF98;
-	5'b1xx10: sub2 = 16'hFFF8;
-	default:  sub2 = 16'hFFFE;
+		5'b10000: sub2 = 16'h9998;
+		5'b11000: sub2 = 16'hF998;
+		5'b1x100: sub2 = 16'hFF98;
+		5'b1xx10: sub2 = 16'hFFF8;
+		default:  sub2 = 16'hFFFE;
 	endcase
+end
 
 wire[15:0] new1 = counter + (first|~&mode[2:1]?sub1:sub2);
 wire[15:0] newvalue = {new1[15:1],new1[0]&~&mode[2:1]};

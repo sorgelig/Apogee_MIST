@@ -8,24 +8,24 @@
 
 module k580vm80a
 (
-   input          pin_clk,       // global module clock (no in original 8080)
-   input          pin_f1,        // clock phase 1 (used as clock enable)
-   input          pin_f2,        // clock phase 2 (used as clock enable)
-   input          pin_reset,     // module reset
-   output[15:0]   pin_a,         // address bus outputs
-   output[7:0]    pin_dout,      // data bus output
-   input [7:0]    pin_din,       // data bus input
-   output         pin_aena,      // address outputs enable
-   output         pin_dena,      // data outputs enable
-   input          pin_hold,      //
-   output         pin_hlda,      //
-   input          pin_ready,     //
-   output         pin_wait,      //
-   input          pin_int,       //
-   output         pin_inte,      //
-   output         pin_sync,      //
-   output         pin_dbin,      //
-   output         pin_wr_n
+   input         pin_clk,       // global module clock (no in original 8080)
+   input         pin_f1,        // clock phase 1 (used as clock enable)
+   input         pin_f2,        // clock phase 2 (used as clock enable)
+   input         pin_reset,     // module reset
+   output [15:0] pin_a,         // address bus outputs
+   output  [7:0] pin_dout,      // data bus output
+   input   [7:0] pin_din,       // data bus input
+   output        pin_aena,      // address outputs enable
+   output        pin_dena,      // data outputs enable
+   input         pin_hold,      //
+   output        pin_hlda,      //
+   input         pin_ready,     //
+   output        pin_wait,      //
+   input         pin_int,       //
+   output        pin_inte,      //
+   output        pin_sync,      //
+   output        pin_dbin,      //
+   output        pin_wr_n
 );
 
 //______________________________________________________________________________

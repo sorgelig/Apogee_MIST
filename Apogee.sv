@@ -50,41 +50,47 @@ module Apogee
    output wire        SDRAM_CKE
 );
 
-assign LED = ~ioctl_download;
-
 wire clk_sys;
 wire clk_ram;
 wire clk_ps2;
 wire locked;
-pll pll(.locked(locked), .inclk0(CLOCK_27[0]), .c0(clk_ram), .c1(SDRAM_CLK), .c2(clk_sys), .c3(clk_ps2));
+pll pll
+(
+	.inclk0(CLOCK_27[0]), 
+	.locked(locked), 
+	.c0(clk_ram), 
+	.c1(SDRAM_CLK), 
+	.c2(clk_sys), 
+	.c3(clk_ps2)
+);
 
 wire [7:0] status;
 wire [1:0] buttons;
 wire scandoubler_disable;
 wire ps2_kbd_clk, ps2_kbd_data;
 
-user_io #(.STRLEN(35)) user_io (
+user_io #(.STRLEN(35)) user_io 
+(
 	.conf_str(     "APOGEE;RKA;O1,Color,On,Off;T2,Reset"),
 	.SPI_SCK(SPI_SCK),
 	.CONF_DATA0(CONF_DATA0),
 	.SPI_DO(SPI_DO),
 	.SPI_DI(SPI_DI),
-	
+
 	.status(status),
 	.buttons(buttons),
 	.scandoubler_disable(scandoubler_disable),
-	
+
 	.ps2_clk(clk_ps2),
 	.ps2_kbd_clk(ps2_kbd_clk),
 	.ps2_kbd_data(ps2_kbd_data)
 );
 
-wire RESET = status[0] | status[2] | buttons[1];
-
 ////////////////////   RESET   ////////////////////
-reg[3:0] reset_cnt;
-reg reset = 1;
+reg [3:0] reset_cnt;
+reg       reset = 1;
 
+wire    RESET = status[0] | status[2] | buttons[1];
 integer initRESET = 20000000;
 
 always @(posedge clk_sys) begin
@@ -99,14 +105,16 @@ end
 
 ////////////////////   MEM   ////////////////////
 wire[7:0] ram_o;
-sram sram( .*,
-    .init(!locked),
-	 .clk_sdram(clk_ram),
-	 .dout(ram_o),
-	 .din( ioctl_download ? ioctl_data : cpu_o),
-	 .addr(ioctl_download ? ioctl_addr : hlda ? vid_addr       : addr),
-	 .we(  ioctl_download ? ioctl_wr   : hlda ? 1'b0           : !cpu_wr_n && !ppa2_a_acc),
-	 .rd(  ioctl_download ? 1'b0       : hlda ? !dma_oiord_n   : cpu_rd)
+sram sram
+( 
+	.*,
+	.init(!locked),
+	.clk_sdram(clk_ram),
+	.dout(ram_o),
+	.din( ioctl_download ? ioctl_data : cpu_o),
+	.addr(ioctl_download ? ioctl_addr : hlda ? vid_addr       : addr),
+	.we(  ioctl_download ? ioctl_wr   : hlda ? 1'b0           : !cpu_wr_n && !ppa2_a_acc),
+	.rd(  ioctl_download ? 1'b0       : hlda ? !dma_oiord_n   : cpu_rd)
 );
 
 wire ppa2_a_acc = ((addrbus[15:8] == 8'hEE) && (addrbus[1:0] == 2'd0));
@@ -265,7 +273,8 @@ wire [5:0] VGA_Rs;
 wire [5:0] VGA_Gs;
 wire [5:0] VGA_Bs;
 
-scandoubler scandoubler (
+scandoubler scandoubler 
+(
 	.clk_x2(clk_pix2x),
 
 	.scanlines(0),
@@ -384,7 +393,8 @@ k580vi53 pit
 	.odata(pit_o)
 );
 
-sigma_delta_dac #(.MSBI(2)) dac_l (
+sigma_delta_dac #(.MSBI(2)) dac
+(
 	.CLK(f2),
 	.RESET(reset),
 	.DACin(2'd0 + ppa1_c[0] + pit_out0 + pit_out1 + pit_out2),
@@ -392,16 +402,18 @@ sigma_delta_dac #(.MSBI(2)) dac_l (
 );
 
 //////////////////   EXTROM   //////////////////
-wire ioctl_wr;
+wire        ioctl_wr;
 wire [24:0] ioctl_addr;
-wire [7:0]  ioctl_data;
+wire  [7:0] ioctl_data;
+wire [24:0] ioctl_size;
+wire        ioctl_download;
+wire [4:0]  ioctl_index;
 
 data_io data_io(
 	.sck(SPI_SCK),
 	.ss(SPI_SS2),
 	.sdi(SPI_DI),
 
-	.force_erase(0),
 	.downloading(ioctl_download),
 	.size(ioctl_size),
 	.index(ioctl_index),
@@ -412,9 +424,6 @@ data_io data_io(
 	.d(ioctl_data)
 );
 
-wire [24:0] ioctl_size;
-wire        ioctl_download;
-wire [4:0]  ioctl_index;
-
+assign LED = ~ioctl_download;
 
 endmodule

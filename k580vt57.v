@@ -15,24 +15,26 @@
 //
 // Warning: This realization is not fully operational.
 
-module k580vt57(
-	input clk,
-	input ce,
-	input reset,
-	input[3:0] iaddr,
-	input[7:0] idata,
-	input[3:0] drq,
-	input iwe_n,
-	input ird_n,
-	input hlda,
-	output hrq,
-	output reg[3:0] dack,
-	output[7:0] odata,
-	output[15:0] oaddr,
-	output owe_n,
-	output ord_n,
-	output oiowe_n,
-	output oiord_n );
+module k580vt57
+(
+	input         clk,
+	input         ce,
+	input         reset,
+	input   [3:0] iaddr,
+	input   [7:0] idata,
+	input   [3:0] drq,
+	input         iwe_n,
+	input         ird_n,
+	input         hlda,
+	output        hrq,
+	output  [3:0] dack,
+	output  [7:0] odata,
+	output [15:0] oaddr,
+	output        owe_n,
+	output        ord_n,
+	output        oiowe_n,
+	output        oiord_n 
+);
 
 parameter ST_IDLE = 3'b000;
 parameter ST_WAIT = 3'b001;
@@ -43,19 +45,22 @@ parameter ST_T4   = 3'b101;
 parameter ST_T5   = 3'b110;
 parameter ST_T6   = 3'b111;
 
-reg[2:0] state;
-reg[1:0] channel;
-reg[7:0] mode;
-reg[4:0] chstate;
-reg[15:0] chaddr[3:0];
-reg[15:0] chtcnt[3:0];
-reg ff,exiwe_n;
 
-assign hrq = state!=ST_IDLE;
-assign odata = {3'b0,chstate};
-assign oaddr = chaddr[channel];
-assign owe_n = chtcnt[channel][14]==0 || state!=ST_T2;
-assign ord_n = chtcnt[channel][15]==0 || (state!=ST_T1 && state!=ST_T2);
+reg  [3:0] ack;
+reg  [2:0] state;
+reg  [1:0] channel;
+reg  [7:0] mode;
+reg  [4:0] chstate;
+reg [15:0] chaddr[3:0];
+reg [15:0] chtcnt[3:0];
+reg        ff,exiwe_n;
+
+assign dack    = ack;
+assign hrq     = state!=ST_IDLE;
+assign odata   = {3'b0,chstate};
+assign oaddr   = chaddr[channel];
+assign owe_n   = chtcnt[channel][14]==0 || state!=ST_T2;
+assign ord_n   = chtcnt[channel][15]==0 || (state!=ST_T1 && state!=ST_T2);
 assign oiowe_n = chtcnt[channel][15]==0 || state!=ST_T2;
 assign oiord_n = chtcnt[channel][14]==0 || (state!=ST_T1 && state!=ST_T2);
 
@@ -64,7 +69,7 @@ wire[3:0] mdrq = drq & mode[3:0];
 always @(posedge clk or posedge reset) begin
 	if (reset) begin
 		state <= 0; ff <= 0; mode <= 0; exiwe_n <= 1'b1;
-		chstate <= 0; dack <= 0;
+		chstate <= 0; ack <= 0;
 	end else begin
 		exiwe_n <= iwe_n;
 		if (iwe_n && ~exiwe_n) begin
@@ -98,19 +103,19 @@ always @(posedge clk or posedge reset) begin
 			ST_WAIT: begin
 				if (hlda) state <= ST_T1;
 				casex (mdrq[3:1])
-				3'b1xx: channel <= 2'b11;
-				3'b01x: channel <= 2'b10;
-				3'b001: channel <= 2'b01;
-				3'b000: channel <= 2'b00;
+					3'b1xx: channel <= 2'b11;
+					3'b01x: channel <= 2'b10;
+					3'b001: channel <= 2'b01;
+					3'b000: channel <= 2'b00;
 				endcase
 			end
 			ST_T1: begin
 				state <= ST_T2;
-				dack[channel] <= 1'b1;
+				ack[channel] <= 1'b1;
 			end
 			ST_T2: begin
 				if (mdrq[channel]==0) begin
-					dack[channel] <= 0;
+					ack[channel] <= 0;
 					if (chtcnt[channel][13:0]==0) begin
 						chstate[channel] <= 1'b1;
 						if (mode[7]==1'b1 && channel==2'b10) begin

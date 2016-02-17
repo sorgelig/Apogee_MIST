@@ -17,23 +17,28 @@
 //
 // Warning: This realization is not fully operational.
 
-module k580vv55(
-	input clk, input reset, input[1:0] addr, input we_n,
-	input[7:0] idata, output reg[7:0] odata,
-	input[7:0] ipa, output reg[7:0] opa,
-	input[7:0] ipb, output reg[7:0] opb,
-	input[7:0] ipc, output reg[7:0] opc);
+module k580vv55
+(
+	input           clk, 
+	input           reset, 
+	input     [1:0] addr, 
+	input           we_n,
+	input     [7:0] idata, 
+	output    [7:0] odata,
+	input     [7:0] ipa, 
+	output reg[7:0] opa,
+	input     [7:0] ipb, 
+	output reg[7:0] opb,
+	input     [7:0] ipc, 
+	output reg[7:0] opc
+);
 
 //reg[6:0] mode;
 
-always begin
-	case (addr)
-	2'b00: odata = ipa;
-	2'b01: odata = ipb;
-	2'b10: odata = ipc;
-	2'b11: odata = 8'h00;
-	endcase
-end
+assign odata = (addr == 0) ? ipa :
+               (addr == 1) ? ipb :
+               (addr == 2) ? ipc : 8'd0;
+
 
 always @(posedge clk or posedge reset) begin
 	if (reset) begin
