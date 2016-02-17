@@ -213,7 +213,7 @@ always @(negedge clk_pix) begin
 end
 
 always @(posedge clk_pix) begin
-	if (!d_cnt) data <= ypos>(maxy+1'd1) ? 6'd0 : lten ? 6'h3F : vsp ? 6'b0 : rvv ? ~fdata[5:0] : fdata[5:0];
+	if (!d_cnt) data <= ypos>(maxy+1'd1) ? 6'd0 : lten ? 6'h3F : {6{rvv}} ^ (vsp ? 6'b0 : fdata[5:0]);
 		else data <= {data[4:0],1'b0};
 end
 
