@@ -63,8 +63,8 @@ wire [1:0] buttons;
 wire scandoubler_disable;
 wire ps2_kbd_clk, ps2_kbd_data;
 
-user_io #(.STRLEN(16)) user_io (
-	.conf_str("APOGEE;;T2,Reset"),
+user_io #(.STRLEN(35)) user_io (
+	.conf_str(     "APOGEE;RKA;O1,Color,On,Off;T2,Reset"),
 	.SPI_SCK(SPI_SCK),
 	.CONF_DATA0(CONF_DATA0),
 	.SPI_DO(SPI_DO),
@@ -88,7 +88,7 @@ reg reset = 1;
 integer initRESET = 20000000;
 
 always @(posedge clk_sys) begin
-	if ((!RESET && reset_cnt==4'd14) && !initRESET)
+	if ((!RESET && reset_cnt==4'd14) && !initRESET && !ioctl_download)
 		reset <= 0;
 	else begin
 		if(initRESET && !ioctl_download) initRESET <= initRESET - 1;
@@ -251,9 +251,9 @@ wire hsync, vsync;
 osd osd 
 (
 	.*,
-	.VGA_Rx({6{pix & ~vid_hilight }}),
-	.VGA_Gx({6{pix & ~vid_gattr[1]}}),
-	.VGA_Bx({6{pix & ~vid_gattr[0]}}),
+	.VGA_Rx({6{pix & (status[1] ? 1'b1 : ~vid_hilight )}}),
+	.VGA_Gx({6{pix & (status[1] ? 1'b1 : ~vid_gattr[1])}}),
+	.VGA_Bx({6{pix & (status[1] ? 1'b1 : ~vid_gattr[0])}}),
 	.VGA_R(VGA_Rs),
 	.VGA_G(VGA_Gs),
 	.VGA_B(VGA_Bs),
@@ -384,10 +384,10 @@ k580vi53 pit
 	.odata(pit_o)
 );
 
-sigma_delta_dac #(.MSBI(3)) dac_l (
+sigma_delta_dac #(.MSBI(2)) dac_l (
 	.CLK(f2),
 	.RESET(reset),
-	.DACin(3'd0 + ppa1_c[0] + pit_out0 + pit_out1 + pit_out2),
+	.DACin(2'd0 + ppa1_c[0] + pit_out0 + pit_out1 + pit_out2),
 	.DACout(AUDIO_L)
 );
 

@@ -70,6 +70,8 @@ localparam UIO_FILE_INDEX   = 8'h55;
 reg downloading_reg = 1'b0;
 reg erasing = 1'b0;
 
+reg [15:0] start_addr;
+
 // data_io has its own SPI interface to the io controller
 always@(posedge sck, posedge ss) begin
 	if(ss == 1'b1)
@@ -84,9 +86,11 @@ always@(posedge sck, posedge ss) begin
 			sbuf <= { sbuf[5:0], sdi};
 
 		// increase target address after write
-		if(rclk)
+		if(rclk) begin
 			addr <= addr + 25'd1;
-	 
+			if(addr == 25'h100003) addr <= start_addr;
+		end
+
 		// count 0-7 8-15 8-15 ... 
 		if(cnt < 15) 	cnt <= cnt + 4'd1;
 		else				cnt <= 4'd8;
@@ -99,9 +103,8 @@ always@(posedge sck, posedge ss) begin
 		if((cmd == UIO_FILE_TX) && (cnt == 15)) begin
 			// prepare 
 			if(sdi) begin
-			/*
-				if(index == 0) addr <= 25'h178000;  // esxdos at 1.5MB
-				else			*/	addr <= 25'h200000;  // tape buffer at 2MB
+				if(index == 0) addr <= 25'h200000;  // esxdos at 1.5MB
+				else				addr <= 25'h100000;  // tape buffer at 2MB
 				
 				downloading_reg <= 1'b1; 
 			end else begin
@@ -115,8 +118,21 @@ always@(posedge sck, posedge ss) begin
 		
 		// command 0x54: UIO_FILE_TX
 		if((cmd == UIO_FILE_TX_DAT) && (cnt == 15)) begin
-			write_a <= addr;
-			data <= {sbuf, sdi};
+			if(addr == 25'h100000) begin
+				start_addr[15:8] <= {sbuf, sdi};
+				data <= 8'hC3;
+				write_a <= 0;
+			end else if(addr == 25'h100001) begin
+				data <= {sbuf, sdi};
+				start_addr[7:0] <= {sbuf, sdi};
+				write_a <= 1;
+			end else if(addr == 25'h100002) begin
+				data <= start_addr[15:8];
+				write_a <= 2;
+			end else begin
+				write_a <= addr;
+				data <= {sbuf, sdi};
+			end
 			rclk <= 1'b1;
 		end
 		
