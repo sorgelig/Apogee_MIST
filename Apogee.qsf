@@ -366,7 +366,7 @@ set_global_assignment -name VERILOG_FILE bios.v
 set_global_assignment -name MIF_FILE font.mif
 set_global_assignment -name VERILOG_FILE font.v
 set_global_assignment -name VERILOG_FILE sigma_delta_dac.v
-set_global_assignment -name VERILOG_FILE k580vi53.v
+set_global_assignment -name VERILOG_FILE 8253.v
 set_global_assignment -name VERILOG_FILE k580vv55.v
 set_global_assignment -name VERILOG_FILE k580vt57.v
 set_global_assignment -name VERILOG_FILE k580vm80a.v

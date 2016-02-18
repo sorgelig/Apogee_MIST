@@ -401,23 +401,18 @@ wire pit_out0;
 wire pit_out1;
 wire pit_out2;
 
-k580vi53 pit
+pit8253 pit
 (
 	.clk(clk_sys),
-	.c0(clk_pit),
-	.c1(clk_pit),
-	.c2(clk_pit),
-	.g0(1),
-	.g1(1),
-	.g2(1),
-	.out0(pit_out0),
-	.out1(pit_out1),
-	.out2(pit_out2),
-	.addr(addrbus[1:0]),
+	.tce(clk_pit),
+	.a(addrbus[1:0]),
+	.wr(~pit_we_n),
 	.rd(pit_rd),
-	.we_n(pit_we_n),
-	.idata(cpu_o),
-	.odata(pit_o)
+	.din(cpu_o),
+	.dout(pit_o),
+	.gate(3'b111),
+	.out({pit_out2, pit_out1, pit_out0}),
+	.tpsel(0)
 );
 
 assign AUDIO_R = AUDIO_L;
