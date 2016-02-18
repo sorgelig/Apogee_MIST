@@ -97,9 +97,11 @@ always@(posedge sck, posedge ss) begin
 		if((cmd == UIO_FILE_TX) && (cnt == 15)) begin
 			// prepare 
 			if(sdi) begin
-				if(new_index == 0) addr <= 25'h200000;
-					else addr <= 25'h100000;
-				
+				case(new_index)
+					      0: addr <= 25'h200000; // ROMDISK
+					    1,2: addr <= 25'h100000; // RKA, RKR
+					default: addr <= 25'h0FFFFF; // GAM, skip sync byte
+				endcase
 				downloading_reg <= 1'b1; 
 			end else begin
 				downloading_reg <= 1'b0; 

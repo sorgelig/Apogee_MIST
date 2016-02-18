@@ -55,9 +55,9 @@ wire [1:0] buttons;
 wire scandoubler_disable;
 wire ps2_kbd_clk, ps2_kbd_data;
 
-user_io #(.STRLEN(77)) user_io 
+user_io #(.STRLEN(85)) user_io 
 (
-	.conf_str(     "APOGEE;RKA;F3,RK;O1,Color,On,Off;O4,Turbo,Off,On;O5,Autostart,Yes,No;T2,Reset"),
+	.conf_str(     "APOGEE;RKA;F2,RKR;F3,GAM;O1,Color,On,Off;O4,Turbo,Off,On;O5,Autostart,Yes,No;T6,Reset"),
 	.SPI_SCK(SPI_SCK),
 	.CONF_DATA0(CONF_DATA0),
 	.SPI_DO(SPI_DO),
@@ -132,7 +132,7 @@ end
 reg [3:0] reset_cnt;
 reg       reset = 1;
 
-wire    RESET = status[0] | status[2] | buttons[1] | reset_key[0];
+wire    RESET = status[0] | status[6] | buttons[1] | reset_key[0];
 integer initRESET = 20000000;
 
 always @(posedge clk_sys) begin
