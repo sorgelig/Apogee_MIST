@@ -331,7 +331,7 @@ assign VGA_B  = scandoubler_disable ? VGA_Bs : VGA_Bd;
 ////////////////////   KBD   ////////////////////
 wire [7:0] kbd_o;
 wire [2:0] kbd_shift;
-wire [1:0] reset_key;
+wire [2:0] reset_key;
 
 rk_kbd kbd
 (
@@ -445,7 +445,7 @@ data_io data_io(
 	.downloading(ioctl_download),
 	.size(ioctl_size),
 	.index(ioctl_index),
-	.reset(reset),
+	.reset({reset_key[2], reset}),
 
 	.clk(clk_io),
 	.wr(ioctl_wr),

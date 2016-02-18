@@ -29,7 +29,7 @@ module data_io
 	input         ss,
 	input         sdi,
 
-	input         reset,
+	input   [1:0] reset,
 	output        downloading,   // signal indicating an active download
 	output [24:0] size,          // number of bytes in input buffer
    output reg [4:0]  index,     // menu index used to upload the file
@@ -63,14 +63,13 @@ reg downloading_reg = 1'b0;
 reg [15:0] start_addr;
 reg  [4:0] new_index;
 
-always@(posedge reset, posedge downloading_reg) begin
+always@(posedge reset[0], posedge downloading_reg) begin
 	if(downloading_reg) index <= new_index;
-		else index <= 0;
+		else index <= {reset[1],1'b0};
 end
 
 // data_io has its own SPI interface to the io controller
 always@(posedge sck, posedge ss) begin
-	reg old_reset;
 	if(ss == 1'b1)
 		cnt <= 5'd0;
 	else begin
