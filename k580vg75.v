@@ -19,7 +19,6 @@ module k580vg75
 (
 	input        clk,
 	input        clk_pix,
-	output       clk_char,
 
 	input        iaddr,
 	input  [7:0] idata,
@@ -102,7 +101,7 @@ reg[5:0] data;
 wire[7:0] fdata;
 
 assign pix = (hrtc | !h_cnt | vrtc) ? 1'b0 : data[5];
-assign clk_char = (!d_cnt & clk_pix);
+wire clk_char = (!d_cnt & clk_pix);
 always @(negedge clk_pix) begin
 	if (d_cnt == CHAR_WIDTH) d_cnt <= 0;
 		else d_cnt <= d_cnt+1'b1;

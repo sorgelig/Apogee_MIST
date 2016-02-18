@@ -50,20 +50,6 @@ module Apogee
    output wire        SDRAM_CKE
 );
 
-wire clk_sys;
-wire clk_ram;
-wire clk_ps2;
-wire locked;
-pll pll
-(
-	.inclk0(CLOCK_27[0]), 
-	.locked(locked), 
-	.c0(clk_ram), 
-	.c1(SDRAM_CLK), 
-	.c2(clk_sys), 
-	.c3(clk_ps2)
-);
-
 wire [7:0] status;
 wire [1:0] buttons;
 wire scandoubler_disable;
@@ -87,6 +73,60 @@ user_io #(.STRLEN(77)) user_io
 );
 
 wire mode86 = (ioctl_index>1);
+
+////////////////////   CLOCKS   ///////////////////
+wire locked;
+pll pll
+(
+	.inclk0(CLOCK_27[0]),
+	.locked(locked),
+	.c0(clk_ram),
+	.c1(SDRAM_CLK),
+	.c2(clk_sys)
+);
+
+wire clk_sys;       // 50Mhz
+wire clk_ram;       // 100MHz
+reg  clk_io;        // 25MHz
+                    //
+                    // strobes:
+reg  clk_f1,clk_f2; // 1.78MHz/3.5MHz
+reg  clk_pix;       // 8MHz
+reg  clk_pix2x;     // 16MHz
+reg  clk_pit;       // 1.78MHz
+reg  clk_dma;       // 1.78MHz
+reg  clk_ps2;       // 14KHz
+
+always @(negedge clk_sys) begin
+	reg [2:0] clk_viddiv;
+	reg [5:0] cpu_div = 0;
+	int ps2_div;
+	reg turbo = 0;
+
+	clk_io <= ~clk_io;
+
+	clk_viddiv <= clk_viddiv + 1'd1;
+	if(clk_viddiv == 5) clk_viddiv <=0;
+	clk_pix   <= !clk_viddiv;
+	clk_pix2x <= ((clk_viddiv == 5) || (clk_viddiv == 2));
+
+	cpu_div <= cpu_div + 1'd1;
+	if(cpu_div == 27) begin 
+		cpu_div <= 0;
+		turbo <= status[4];
+	end
+	clk_f1 <= ((cpu_div == 0) | (turbo & (cpu_div == 14)));
+	clk_f2 <= ((cpu_div == 2) | (turbo & (cpu_div == 16)));
+
+	clk_pit <= (cpu_div == 4);
+	clk_dma <= (cpu_div == 4);
+	
+	ps2_div <= ps2_div+1;
+	if(ps2_div == 3570) ps2_div <=0;
+	clk_ps2 <= !ps2_div;
+
+	startup <= reset|(startup&~addrbus[15]);
+end
 
 ////////////////////   RESET   ////////////////////
 reg [3:0] reset_cnt;
@@ -153,8 +193,6 @@ wire  [7:0] cpu86_i=       (!addrbus[15]) ? (startup ? rom86_o : ram_o) :
                  (addrbus[15:13]==3'b111) ? rom86_o:
 					                             8'd0;
 
-wire [7:0] cpu_i = mode86 ? cpu86_i : cpuA_i;
-
 wire pit_we_n  = mode86 ? 1'b1                            : addrbus[15:8]!=8'hEC|cpu_wr_n;
 wire pit_rd    = mode86 ? 1'b0                            : addrbus[15:8]==8'hEC&cpu_rd;
 wire ppa1_we_n = mode86 ? addrbus[15:13]!=3'b100|cpu_wr_n : addrbus[15:8]!=8'hED|cpu_wr_n;
@@ -163,41 +201,15 @@ wire crt_we_n  = mode86 ? addrbus[15:13]!=3'b110|cpu_wr_n : addrbus[15:8]!=8'hEF
 wire crt_rd_n  = mode86 ? addrbus[15:13]!=3'b110|~cpu_rd  : addrbus[15:8]!=8'hEF|~cpu_rd;
 wire dma_we_n  = mode86 ? addrbus[15:13]!=3'b111|cpu_wr_n : addrbus[15:8]!=8'hF0|cpu_wr_n;
 
-reg f1,f2;
-reg clk_pix, clk_pix2x;
-reg clk_io;
-always @(negedge clk_sys) begin
-	reg [2:0] clk_viddiv;
-	reg [5:0] cpu_div = 0;
-
-	clk_io <= ~clk_io;
-
-	clk_viddiv <= clk_viddiv + 1'd1;
-	clk_pix <=0;
-	if(clk_viddiv == 5) begin
-		clk_viddiv <=0;
-		clk_pix <=1;
-	end
-
-	clk_pix2x <= ((clk_viddiv == 5) || (clk_viddiv == 2));
-
-	cpu_div <= cpu_div + 1'd1;
-	if(cpu_div == (status[4] ? 13 : 27)) cpu_div <= 0;
-	f1 <= (cpu_div == 0);
-	f2 <= (cpu_div == 2);
-
-	startup <= reset|(startup&~addrbus[15]);
-end
-
 k580vm80a cpu
 (
    .pin_clk(clk_sys),
-	.pin_f1(f1),
-   .pin_f2(f2),
+   .pin_f1(clk_f1),
+   .pin_f2(clk_f2),
    .pin_reset(reset),
    .pin_a(addrbus),
    .pin_dout(cpu_o),
-   .pin_din(cpu_i),
+   .pin_din(mode86 ? cpu86_i : cpuA_i),
    .pin_hold(hrq),
    .pin_hlda(hlda),
    .pin_ready(1),
@@ -209,7 +221,6 @@ k580vm80a cpu
    .pin_wr_n(cpu_wr_n)
 );
 
-
 ////////////////////   VIDEO   ////////////////////
 wire  [7:0] crt_o;
 wire  [3:0] vid_line;
@@ -217,7 +228,7 @@ wire [15:0] vid_addr;
 wire  [3:0] dma_dack;
 wire  [7:0] dma_o;
 wire  [1:0] vid_gattr;
-wire clk_char,vid_drq,vid_irq,hlda;
+wire vid_drq,vid_irq,hlda;
 wire vid_hilight;
 wire dma_owe_n,dma_ord_n,dma_oiowe_n,dma_oiord_n;
 wire hrq;
@@ -225,7 +236,7 @@ wire hrq;
 k580vt57 dma
 (
 	.clk(clk_sys), 
-	.ce(f2), 
+	.ce(clk_dma), 
 	.reset(reset),
 	.iaddr(addrbus[3:0]), 
 	.idata(cpu_o), 
@@ -245,23 +256,22 @@ k580vt57 dma
 
 k580vg75 crt
 (
-	.clk(clk_sys), 
-	.clk_pix(clk_pix), 
-	.clk_char(clk_char),
-	.iaddr(addrbus[0]), 
-	.idata(cpu_o), 
-	.iwe_n(crt_we_n), 
+	.clk(clk_sys),
+	.clk_pix(clk_pix),
+	.iaddr(addrbus[0]),
+	.idata(cpu_o),
+	.iwe_n(crt_we_n),
 	.ird_n(crt_rd_n),
-	.vrtc(vsync), 
-	.hrtc(hsync), 
+	.vrtc(vsync),
+	.hrtc(hsync),
 	.pix(pix),
-	.dack(dma_dack[2]), 
-	.ichar(ram_o), 
-	.drq(vid_drq), 
+	.dack(dma_dack[2]),
+	.ichar(ram_o),
+	.drq(vid_drq),
 	.irq(vid_irq),
-	.odata(crt_o), 
-	.line(vid_line), 
-	.hilight(vid_hilight), 
+	.odata(crt_o),
+	.line(vid_line),
+	.hilight(vid_hilight),
 	.gattr(vid_gattr),
 	.symset(mode86 ? 1'b0 : inte)
 );
@@ -393,20 +403,20 @@ wire pit_out2;
 
 k580vi53 pit
 (
-	.clk(clk_sys), 
-	.c0(f2), 
-	.c1(f2), 
-	.c2(f2),
-	.g0(1), 
-	.g1(1), 
-	.g2(1), 
-	.out0(pit_out0), 
-	.out1(pit_out1), 
+	.clk(clk_sys),
+	.c0(clk_pit),
+	.c1(clk_pit),
+	.c2(clk_pit),
+	.g0(1),
+	.g1(1),
+	.g2(1),
+	.out0(pit_out0),
+	.out1(pit_out1),
 	.out2(pit_out2),
-	.addr(addrbus[1:0]), 
-	.rd(pit_rd), 
-	.we_n(pit_we_n), 
-	.idata(cpu_o), 
+	.addr(addrbus[1:0]),
+	.rd(pit_rd),
+	.we_n(pit_we_n),
+	.idata(cpu_o),
 	.odata(pit_o)
 );
 
