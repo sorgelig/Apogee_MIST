@@ -69,9 +69,9 @@ wire [1:0] buttons;
 wire scandoubler_disable;
 wire ps2_kbd_clk, ps2_kbd_data;
 
-user_io #(.STRLEN(57)) user_io 
+user_io #(.STRLEN(77)) user_io 
 (
-	.conf_str(     "APOGEE;RKA;F3,RK;O1,Color,On,Off;O4,Turbo,Off,On;T2,Reset"),
+	.conf_str(     "APOGEE;RKA;F3,RK;O1,Color,On,Off;O4,Turbo,Off,On;O5,Autostart,Yes,No;T2,Reset"),
 	.SPI_SCK(SPI_SCK),
 	.CONF_DATA0(CONF_DATA0),
 	.SPI_DO(SPI_DO),
@@ -326,8 +326,9 @@ wire [1:0] reset_key;
 rk_kbd kbd
 (
 	.clk(clk_sys), 
-	.reset(reset), 
-	.ps2_clk(ps2_kbd_clk), 
+	.reset(reset),
+	.downloading(ioctl_download && (ioctl_index != 0) && !status[5]),
+	.ps2_clk(ps2_kbd_clk),
 	.ps2_dat(ps2_kbd_data),
 	.addr(~ppa1_a), 
 	.odata(kbd_o), 

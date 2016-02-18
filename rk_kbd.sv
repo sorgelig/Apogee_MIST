@@ -18,6 +18,7 @@ module rk_kbd
 (
 	input           clk,
 	input           reset,
+	input           downloading,
 	input           ps2_clk,
 	input           ps2_dat,
 	input     [7:0] addr,
@@ -150,8 +151,9 @@ end
 reg mctrl  = 0;
 reg mshift = 0;
 
-reg [7:0] auto[28] = '{
-	0,0,0,0,0,0,0,0,
+reg [7:0] auto[36] = '{
+	255,
+	0,0,0,0,
 	{1'b1, 7'h26}, // R
 	{1'b0, 7'h26}, // R
 	{1'b1, 7'h02}, // 0
@@ -164,20 +166,27 @@ reg [7:0] auto[28] = '{
 	{1'b0, 7'h02}, // 0
 	{1'b1, 7'h21}, // enter
 	{1'b0, 7'h21}, // enter
+	0,0,
+	{1'b1, 7'h74}, // G
+	{1'b0, 7'h74}, // G
+	{1'b1, 7'h21}, // enter
+	{1'b0, 7'h21}, // enter
+	255,255,255,
 	0,0,0,0,
 	{1'b1, 7'h74}, // G
 	{1'b0, 7'h74}, // G
 	{1'b1, 7'h21}, // enter
-	{1'b0, 7'h21}  // enter
+	{1'b0, 7'h21}, // enter
+	255,255
 };
 
 reg auto_strobe;
-reg [4:0] auto_pos = 31;
+reg [5:0] auto_pos = 0;
 always @(negedge clk) begin
 	integer div;
 	div <= div + 1;
 	auto_strobe <=0;
-	if(div == 2000000) begin 
+	if(div == 3000000) begin 
 		div <=0;
 		auto_strobe <=1;
 	end
@@ -185,6 +194,8 @@ end
 
 always @(posedge clk) begin
 	reg old_reset, old_reset_key;
+	reg old_downloading;
+	
 	old_reset <= reset;
 	if(!old_reset && reset) begin
 		prev_clk <= 0;
@@ -203,7 +214,7 @@ always @(posedge clk) begin
 		keystate[9] <= 0;
 		keystate[10] <= 0;
 	end else begin
-		if(auto_pos >= 28) begin
+		if(auto[auto_pos] == 255) begin
 			prev_clk <= {ps2_clk,prev_clk[3:1]};
 			if (prev_clk==4'b1) begin
 				if (kdata[11]==1'b1 && ^kdata[10:2]==1'b1 && kdata[1:0]==2'b1) begin
@@ -229,8 +240,10 @@ always @(posedge clk) begin
 			auto_pos <= auto_pos + 1'd1;
 		end
 
-		if(old_reset_key && !reset_key[1]) auto_pos <=0;
+		if(old_reset_key   && !reset_key[1]) auto_pos <=1;
+		if(old_downloading && !downloading)  auto_pos <=26;
 		old_reset_key <= reset_key[1];
+		old_downloading <= downloading;
 	end
 end
 
