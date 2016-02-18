@@ -108,7 +108,7 @@ always @(negedge clk_sys) begin
 	clk_viddiv <= clk_viddiv + 1'd1;
 	if(clk_viddiv == 5) clk_viddiv <=0;
 	clk_pix   <= !clk_viddiv;
-	clk_pix2x <= ((clk_viddiv == 5) || (clk_viddiv == 2));
+	clk_pix2x <= !clk_viddiv || (clk_viddiv == 3);
 
 	cpu_div <= cpu_div + 1'd1;
 	if(cpu_div == 27) begin 
