@@ -267,14 +267,16 @@ k580vg75 crt
 );
 
 wire pix;
+wire [5:0] bw_pix = {{2{pix}}, {4{pix & vid_hilight}}};
+
 wire hsync, vsync;
 
 osd osd 
 (
 	.*,
-	.VGA_Rx({6{pix & (status[1] ? 1'b1 : ~vid_hilight )}}),
-	.VGA_Gx({6{pix & (status[1] ? 1'b1 : ~vid_gattr[1])}}),
-	.VGA_Bx({6{pix & (status[1] ? 1'b1 : ~vid_gattr[0])}}),
+	.VGA_Rx(status[1] ? bw_pix : {6{pix & ~vid_hilight }}),
+	.VGA_Gx(status[1] ? bw_pix : {6{pix & ~vid_gattr[1]}}),
+	.VGA_Bx(status[1] ? bw_pix : {6{pix & ~vid_gattr[0]}}),
 	.VGA_R(VGA_Rs),
 	.VGA_G(VGA_Gs),
 	.VGA_B(VGA_Bs),
