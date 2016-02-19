@@ -170,6 +170,7 @@ bios86 rom86(.address(addrbus[10:0]), .clock(clk_sys), .q(rom86_o));
 
 ////////////////////   CPU   ////////////////////
 wire [15:0] addrbus;
+reg   [7:0] cpu_i;
 wire  [7:0] cpu_o;
 wire        cpu_sync;
 wire        cpu_rd;
@@ -179,19 +180,22 @@ wire        cpu_inta_n;
 wire        inte;
 reg         startup;
 
-wire  [7:0] cpuA_i = (addrbus < 16'hEC00) ? (startup ? rom_o : ram_o) :
-                 (addrbus[15:8] == 8'hEC) ? pit_o  :
-                 (addrbus[15:8] == 8'hED) ? ppa1_o :
-				                   ppa2_a_acc ? ram_o  :
-                 (addrbus[15:8] == 8'hEE) ? ppa2_o :
-                 (addrbus[15:8] == 8'hEF) ? crt_o  :
-                                            rom_o;
-
-wire  [7:0] cpu86_i=       (!addrbus[15]) ? (startup ? rom86_o : ram_o) :
-                 (addrbus[15:13]==3'b100) ? ppa1_o :
-                 (addrbus[15:13]==3'b110) ? crt_o  :
-                 (addrbus[15:13]==3'b111) ? rom86_o:
-					                             8'd0;
+always_comb begin
+	casex({startup, mode86, addrbus[15:8]})
+		10'h0EC: cpu_i <= pit_o;
+		10'h0ED: cpu_i <= ppa1_o;
+		10'h0EE: cpu_i <= (addrbus[1] | addrbus[0]) ? ppa2_o : ram_o;
+		10'h0EF: cpu_i <= crt_o;
+		10'h0FX: cpu_i <= rom_o;
+		10'h2XX: cpu_i <= rom_o;
+		10'b01100XXXXX: cpu_i <= ppa1_o;
+		10'b01101XXXXX: cpu_i <= 0;
+		10'b01110XXXXX: cpu_i <= crt_o;
+		10'b01111XXXXX: cpu_i <= rom86_o;
+		10'b11XXXXXXXX: cpu_i <= rom86_o;
+		default: cpu_i <= ram_o;
+	endcase
+end
 
 wire pit_we_n  = mode86 ? 1'b1                            : addrbus[15:8]!=8'hEC|cpu_wr_n;
 wire pit_rd    = mode86 ? 1'b0                            : addrbus[15:8]==8'hEC&cpu_rd;
@@ -209,7 +213,7 @@ k580vm80a cpu
    .pin_reset(reset),
    .pin_a(addrbus),
    .pin_dout(cpu_o),
-   .pin_din(mode86 ? cpu86_i : cpuA_i),
+   .pin_din(cpu_i),
    .pin_hold(hrq),
    .pin_hlda(hlda),
    .pin_ready(1),
