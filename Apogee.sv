@@ -189,7 +189,9 @@ always_comb begin
 		10'h0FX: cpu_i <= rom_o;
 		10'h2XX: cpu_i <= rom_o;
 		10'b01100XXXXX: cpu_i <= ppa1_o;
-		10'b01101XXXXX: cpu_i <= 0;
+		10'b0110100XXX: cpu_i <= pit_o;
+		10'b0110101XXX: cpu_i <= 0; // sd_o
+		10'b011011XXXX: cpu_i <= 0; // ???
 		10'b01110XXXXX: cpu_i <= crt_o;
 		10'b01111XXXXX: cpu_i <= rom86_o;
 		10'b11XXXXXXXX: cpu_i <= rom86_o;
@@ -197,13 +199,13 @@ always_comb begin
 	endcase
 end
 
-wire pit_we_n  = mode86 ? 1'b1                            : addrbus[15:8]!=8'hEC|cpu_wr_n;
-wire pit_rd    = mode86 ? 1'b0                            : addrbus[15:8]==8'hEC&cpu_rd;
-wire ppa1_we_n = mode86 ? addrbus[15:13]!=3'b100|cpu_wr_n : addrbus[15:8]!=8'hED|cpu_wr_n;
-wire ppa2_we_n = mode86 ? 1'b1                            : addrbus[15:8]!=8'hEE|cpu_wr_n;
-wire crt_we_n  = mode86 ? addrbus[15:13]!=3'b110|cpu_wr_n : addrbus[15:8]!=8'hEF|cpu_wr_n;
-wire crt_rd_n  = mode86 ? addrbus[15:13]!=3'b110|~cpu_rd  : addrbus[15:8]!=8'hEF|~cpu_rd;
-wire dma_we_n  = mode86 ? addrbus[15:13]!=3'b111|cpu_wr_n : addrbus[15:8]!=8'hF0|cpu_wr_n;
+wire pit_we_n  = mode86 ? addrbus[15:11]!=5'b10100|cpu_wr_n : addrbus[15:8]!=8'hEC|cpu_wr_n;
+wire pit_rd    = mode86 ? addrbus[15:11]==5'b10100&cpu_rd   : addrbus[15:8]==8'hEC&cpu_rd;
+wire ppa1_we_n = mode86 ? addrbus[15:13]!=3'b100|cpu_wr_n   : addrbus[15:8]!=8'hED|cpu_wr_n;
+wire ppa2_we_n = mode86 ? 1'b1                              : addrbus[15:8]!=8'hEE|cpu_wr_n;
+wire crt_we_n  = mode86 ? addrbus[15:13]!=3'b110|cpu_wr_n   : addrbus[15:8]!=8'hEF|cpu_wr_n;
+wire crt_rd_n  = mode86 ? addrbus[15:13]!=3'b110|~cpu_rd    : addrbus[15:8]!=8'hEF|~cpu_rd;
+wire dma_we_n  = mode86 ? addrbus[15:13]!=3'b111|cpu_wr_n   : addrbus[15:8]!=8'hF0|cpu_wr_n;
 
 k580vm80a cpu
 (
@@ -424,7 +426,7 @@ sigma_delta_dac #(.MSBI(2)) dac
 (
 	.CLK(clk_sys),
 	.RESET(reset),
-	.DACin(2'd0 + ppa1_c[0] + (mode86 ? inte : pit_out0 + pit_out1 + pit_out2)),
+	.DACin(2'd0 + ppa1_c[0] + (mode86 & inte) + pit_out0 + pit_out1 + pit_out2),
 	.DACout(AUDIO_L)
 );
 
