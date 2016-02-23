@@ -133,7 +133,7 @@ reg [3:0] reset_cnt;
 reg       reset = 1;
 
 wire    RESET = status[0] | status[6] | buttons[1] | reset_key[0];
-integer initRESET = 20000000;
+integer initRESET = 50000000;
 
 always @(posedge clk_sys) begin
 	if ((!RESET && reset_cnt==4'd14) && !initRESET && !ioctl_download)
