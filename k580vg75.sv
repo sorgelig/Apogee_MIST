@@ -10,10 +10,14 @@
 // An open implementation of K580WG75 CRT controller
 //
 // Author: Dmitry Tselikov   http://bashkiria-2m.narod.ru/
+//
+// Modifications: Sorgelig 
 // 
 // Design File: k580wg75.v
 //
 // Warning: This realization is not fully operational.
+
+// altera message_off 10030
 
 module k580vg75
 (
@@ -44,7 +48,7 @@ module k580vg75
 	output [1:0] gattr
 );
 
-parameter CHAR_WIDTH = 5;
+parameter CHAR_WIDTH = 5; // char width minus 1
 
 reg[7:0] init0;
 reg[7:0] init1;
@@ -63,7 +67,7 @@ wire fillattr = init3[6]; // 0 - transparent, 1 - normal fill
 wire curblink = init3[5]; // 0 - blink
 wire curtype  = init3[4]; // 0 - block, 1 - underline
 
-reg[6:0] ochar;
+reg[7:0] ochar;
 
 reg[3:0] chline;
 reg[5:0] attr;
@@ -94,13 +98,13 @@ assign lten = ((attr[5] || (curtype && vcur)) && chline==underline);
 assign vsp = (attr[1] && frame[4]) || (underline[3]==1'b1 && (chline==0||chline==charheight)) || !enable || vspfe || ypos==0;
 assign rvv = attr[4] ^ (curtype==0 && vcur && chline<=underline);
 assign gattr = attr2[3:2];
-assign hilight = attr2[0];
+assign hilight = ochar[7] ? ochar[0] : attr2[0];
 
 reg[3:0] d_cnt;
-reg[5:0] data;
+reg[7:0] data;
 wire[7:0] fdata;
 
-assign pix = (hrtc | !h_cnt | vrtc) ? 1'b0 : data[5];
+assign pix = (hrtc | !h_cnt | vrtc) ? 1'b0 : data[CHAR_WIDTH];
 wire clk_char = (!d_cnt & clk_pix);
 always @(negedge clk_pix) begin
 	if (d_cnt == CHAR_WIDTH) d_cnt <= 0;
@@ -108,9 +112,93 @@ always @(negedge clk_pix) begin
 end
 
 always @(posedge clk_pix) begin
-	if (!d_cnt) data <= ypos>(maxy+1'd1) ? 6'd0 : lten ? 6'h3F : {6{rvv}} ^ (vsp ? 6'b0 : fdata[5:0]);
-		else data <= {data[4:0],1'b0};
+	if (!d_cnt) data <= ypos>(maxy+1'd1) ? 8'd0 : ochar[7] ? gdata : lten ? 8'hFF : {8{rvv}} ^ (vsp ? 8'b0 : fdata);
+		else data <= {data[6:0],1'b0};
 end
+
+wire [7:0] gdata = (ochar[1] && frame[4]) ? 8'd0 : gchar[{ochar[5:2], chline>underline, chline==underline}];
+
+reg [7:0] gchar[64] = '{
+		8'b00000000,
+		8'b00001111,
+		8'b00001000,
+		8'b00000000,
+
+		8'b00000000,
+		8'b11111000,
+		8'b00001000,
+		8'b00000000,
+
+		8'b00001000,
+		8'b00001111,
+		8'b00000000,
+		8'b00000000,
+
+		8'b00001000,
+		8'b11111000,
+		8'b00000000,
+		8'b00000000,
+
+		8'b00000000,
+		8'b11111111,
+		8'b00001000,
+		8'b00000000,
+
+		8'b00001000,
+		8'b11111000,
+		8'b00001000,
+		8'b00000000,
+
+		8'b00001000,
+		8'b00001111,
+		8'b00001000,
+		8'b00000000,
+
+		8'b00001000,
+		8'b11111111,
+		8'b00000000,
+		8'b00000000,
+
+		8'b00000000,
+		8'b11111111,
+		8'b00000000,
+		8'b00000000,
+
+		8'b00001000,
+		8'b00001000,
+		8'b00001000,
+		8'b00000000,
+
+		8'b00001000,
+		8'b11111111,
+		8'b00001000,
+		8'b00000000,
+
+		8'b00000000,
+		8'b00000000,
+		8'b00000000,
+		8'b00000000,
+
+		8'b00000000,
+		8'b00000000,
+		8'b00000000,
+		8'b00000000,
+
+		8'b00000000,
+		8'b00000000,
+		8'b00000000,
+		8'b00000000,
+
+		8'b00000000,
+		8'b00000000,
+		8'b00000000,
+		8'b00000000,
+
+		8'b00000000,
+		8'b00000000,
+		8'b00000000,
+		8'b00000000
+};
 
 font from(.address({symset, ochar[6:0],line[2:0]}), .clock(clk_pix), .q(fdata));
 
@@ -180,19 +268,17 @@ always @(posedge clk) begin
 			if (opos > maxx)
 				ochar <= 0;
 			else begin
-				casex (obuf[7:6])
-				2'b0x: ochar <= obuf[6:0];
-				2'b10: begin
+				if(obuf[7:6] == 2'b10) begin
 					if (fillattr) begin
 						ochar <= 0;
 					end else begin
-						ochar <= lineff ? fifo0[oposf] : fifo1[oposf];
+						ochar <= {1'b0, lineff ? fifo0[oposf] : fifo1[oposf]};
 						oposf <= oposf + 1'b1;
 					end
 					attr <= obuf[5:0];
+				end else begin
+					ochar <= obuf;
 				end
-				2'b11: ochar <= 0;
-				endcase
 			end
 		end
 		if (dack && drq) begin
