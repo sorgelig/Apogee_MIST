@@ -139,7 +139,7 @@ always @(*) begin
 	endcase
 end
 
-reg [7:0] auto[38] = '{
+reg [7:0] auto[40] = '{
 	255,
 	0,0,0,0,
 	{1'b1, 7'h26}, // R
@@ -160,7 +160,7 @@ reg [7:0] auto[38] = '{
 	{1'b1, 7'h21}, // enter
 	{1'b0, 7'h21}, // enter
 	255,255,255,
-	0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0,
 	{1'b1, 7'h74}, // G
 	{1'b0, 7'h74}, // G
 	{1'b1, 7'h21}, // enter
@@ -174,7 +174,7 @@ always @(negedge clk) begin
 	integer div;
 	div <= div + 1;
 	auto_strobe <=0;
-	if(div == 3000000) begin 
+	if(div == 3500000) begin 
 		div <=0;
 		auto_strobe <=1;
 	end

@@ -30,13 +30,18 @@ module k580vg75
 	input        iwe_n,
 	input        ird_n,
 
-	output       vrtc,
-	output       hrtc,
+	output reg   vrtc,
+	output reg   hrtc,
 	output       pix,
 
 	input        dack,
 	input  [7:0] ichar,
 	input        symset,
+	
+	output [7:0] d_init0,
+	output [7:0] d_init1,
+	output [7:0] d_init2,
+	output [7:0] d_init3,
 
 	output reg   drq,
 	output reg   irq,
@@ -49,6 +54,11 @@ module k580vg75
 );
 
 parameter CHAR_WIDTH = 5; // char width minus 1
+
+assign d_init0 = init0;
+assign d_init1 = init1;
+assign d_init2 = init2;
+assign d_init3 = init3;
 
 reg[7:0] init0;
 reg[7:0] init1;
@@ -104,7 +114,8 @@ reg[3:0] d_cnt;
 reg[7:0] data;
 wire[7:0] fdata;
 
-assign pix = (hrtc | !h_cnt | vrtc) ? 1'b0 : data[CHAR_WIDTH];
+reg hblank;
+assign pix = (hrtc | hblank | vrtc) ? 1'b0 : data[CHAR_WIDTH];
 wire clk_char = (!d_cnt & clk_pix);
 always @(negedge clk_pix) begin
 	if (d_cnt == CHAR_WIDTH) d_cnt <= 0;
@@ -119,92 +130,27 @@ end
 wire [7:0] gdata = (ochar[1] && frame[4]) ? 8'd0 : gchar[{ochar[5:2], chline>underline, chline==underline}];
 
 reg [7:0] gchar[64] = '{
-		8'b00000000,
-		8'b00001111,
-		8'b00001000,
-		8'b00000000,
-
-		8'b00000000,
-		8'b11111000,
-		8'b00001000,
-		8'b00000000,
-
-		8'b00001000,
-		8'b00001111,
-		8'b00000000,
-		8'b00000000,
-
-		8'b00001000,
-		8'b11111000,
-		8'b00000000,
-		8'b00000000,
-
-		8'b00000000,
-		8'b11111111,
-		8'b00001000,
-		8'b00000000,
-
-		8'b00001000,
-		8'b11111000,
-		8'b00001000,
-		8'b00000000,
-
-		8'b00001000,
-		8'b00001111,
-		8'b00001000,
-		8'b00000000,
-
-		8'b00001000,
-		8'b11111111,
-		8'b00000000,
-		8'b00000000,
-
-		8'b00000000,
-		8'b11111111,
-		8'b00000000,
-		8'b00000000,
-
-		8'b00001000,
-		8'b00001000,
-		8'b00001000,
-		8'b00000000,
-
-		8'b00001000,
-		8'b11111111,
-		8'b00001000,
-		8'b00000000,
-
-		8'b00000000,
-		8'b00000000,
-		8'b00000000,
-		8'b00000000,
-
-		8'b00000000,
-		8'b00000000,
-		8'b00000000,
-		8'b00000000,
-
-		8'b00000000,
-		8'b00000000,
-		8'b00000000,
-		8'b00000000,
-
-		8'b00000000,
-		8'b00000000,
-		8'b00000000,
-		8'b00000000,
-
-		8'b00000000,
-		8'b00000000,
-		8'b00000000,
-		8'b00000000
+		8'b00000000, 8'b00001111, 8'b00001000, 8'b00000000,
+		8'b00000000, 8'b11111000, 8'b00001000, 8'b00000000,
+		8'b00001000, 8'b00001111, 8'b00000000, 8'b00000000,
+		8'b00001000, 8'b11111000, 8'b00000000, 8'b00000000,
+		8'b00000000, 8'b11111111, 8'b00001000, 8'b00000000,
+		8'b00001000, 8'b11111000, 8'b00001000, 8'b00000000,
+		8'b00001000, 8'b00001111, 8'b00001000, 8'b00000000,
+		8'b00001000, 8'b11111111, 8'b00000000, 8'b00000000,
+		8'b00000000, 8'b11111111, 8'b00000000, 8'b00000000,
+		8'b00001000, 8'b00001000, 8'b00001000, 8'b00000000,
+		8'b00001000, 8'b11111111, 8'b00001000, 8'b00000000,
+		8'b00000000, 8'b00000000, 8'b00000000, 8'b00000000,
+		8'b00000000, 8'b00000000, 8'b00000000, 8'b00000000,
+		8'b00000000, 8'b00000000, 8'b00000000, 8'b00000000,
+		8'b00000000, 8'b00000000, 8'b00000000, 8'b00000000,
+		8'b00000000, 8'b00000000, 8'b00000000, 8'b00000000
 };
 
 font from(.address({symset, ochar[6:0],line[2:0]}), .clock(clk_pix), .q(fdata));
 
-assign hrtc = (h_cnt > 79);
-assign vrtc = (v_cnt > 309);
-wire hrst = (h_cnt == 78);
+wire hrst = (h_cnt == 75);
 wire vrst = (((10'd310 - l_total)>>1) == v_cnt) & hrst;
 
 reg[9:0] h_cnt;
@@ -232,7 +178,7 @@ always @(posedge clk) begin
 			3'b001: {init0,pstate} <= {idata,3'b010};
 			3'b010: {init1,pstate} <= {idata,3'b011};
 			3'b011: {init2,pstate} <= {idata,3'b100};
-			3'b100: {init3,pstate} <= {idata,3'b000};
+			3'b100: begin {init3,pstate} <= {idata,3'b000}; l_total <= 0; end
 			3'b101: {curx,pstate} <= {idata[6:0]+1'b1,3'b110};
 			3'b110: {cury,pstate} <= {idata[5:0]+1'b1,3'b000};
 			default: {err,pstate} <= 4'b1000;
@@ -256,8 +202,10 @@ always @(posedge clk) begin
 				chline <= chline + 1'b1;
 				attr <= exattr;
 			end
-			if(ypos <= maxy) l_cnt <= l_cnt + 1'd1;
-			if(ypos == (maxy+1'b1)) l_total <= l_cnt;
+
+			if(vrtc || (ypos == (maxy+1'b1))) l_total <= l_cnt;
+				else if(ypos <= maxy) l_cnt <= l_cnt + 1'd1;
+
 			oposf <= 0; opos <= {2'b0,maxx[6:1]}+8'hD0;
 		end else if (ypos!=0) begin
 			attr2 <= attr;
@@ -284,37 +232,46 @@ always @(posedge clk) begin
 		if (dack && drq) begin
 			drq <= 0;
 			case (istate)
-			1'b0: begin
-				if (ichar[7:4]==4'b1111 && ichar[0]==1'b1) begin
-					ipos <= 7'h7F;
-					if (ichar[1]==1'b1) dmae <= 0;
-				end else begin
-					ipos <= ipos + 1'b1;
+				1'b0: begin
+					if (ichar[7:4]==4'b1111 && ichar[0]==1'b1) begin
+						ipos <= 7'h7F;
+						if (ichar[1]==1'b1) dmae <= 0;
+					end else begin
+						ipos <= ipos + 1'b1;
+					end
+					istate <= ichar[7:6]==2'b10 ? ~fillattr : 1'b0;
 				end
-				istate <= ichar[7:6]==2'b10 ? ~fillattr : 1'b0;
-			end
-			1'b1: begin
-				iposf <= iposf + 1'b1;
-				istate <= 0;
-			end
+				1'b1: begin
+					iposf <= iposf + 1'b1;
+					istate <= 0;
+				end
 			endcase
 			case ({istate,lineff})
-			2'b00: buf0[ipos] <= ichar;
-			2'b01: buf1[ipos] <= ichar;
-			2'b10: fifo0[iposf] <= ichar[6:0];
-			2'b11: fifo1[iposf] <= ichar[6:0];
+				2'b00: buf0[ipos] <= ichar;
+				2'b01: buf1[ipos] <= ichar;
+				2'b10: fifo0[iposf] <= ichar[6:0];
+				2'b11: fifo1[iposf] <= ichar[6:0];
 			endcase
 		end else begin
 			drq <= ipos > maxx || ypos > maxy ? 1'b0 : dmae&enable;
 		end
 		
 		//fixed resolution 534x312 with real resolution centered inside
-		if (h_cnt == 88) begin
+		if (h_cnt == 84) begin
 			h_cnt <= 0;
-			if (v_cnt == 311) v_cnt <= 0;
-				else v_cnt <= v_cnt+1'b1;
+			if (v_cnt == 311) begin 
+				v_cnt <= 0;
+				vrtc  <= 0;
+			end else begin 
+				v_cnt <= v_cnt+1'b1;
+				if(v_cnt == 309) vrtc <= 1;
+			end
 		end else begin
 			h_cnt <= h_cnt+1'b1;
+			if(h_cnt == 79) hblank <= 1;
+			if(h_cnt == 79) hrtc <= 1;
+			if(h_cnt == 83) hrtc <= 0;
+			if(h_cnt == 1)  hblank <= 0;
 		end
 	end
 end

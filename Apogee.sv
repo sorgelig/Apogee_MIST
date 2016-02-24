@@ -159,8 +159,8 @@ sram sram
 	.rd(  ioctl_download ? 1'b0       : hlda ? !dma_oiord_n : cpu_rd)
 );
 
-wire ppa2_a_acc = ((addrbus[15:8] == 8'hEE) && (addrbus[1:0] == 2'd0));
-wire [24:0] addr = (ppa2_a_acc & !mode86) ? {3'b100, extaddr} : addrbus;
+wire ppa2_a_acc = !mode86 && ((addrbus[15:8] == 8'hEE) && (addrbus[1:0] == 2'd0));
+wire [24:0] addr = ppa2_a_acc ? {3'b100, extaddr} : addrbus;
 
 wire [7:0] rom_o;
 bios   rom(.address({addrbus[11]|startup,addrbus[10:0]}), .clock(clk_sys), .q(rom_o));
@@ -184,7 +184,7 @@ always_comb begin
 	casex({startup, mode86, addrbus[15:8]})
 		10'h0EC: cpu_i <= pit_o;
 		10'h0ED: cpu_i <= ppa1_o;
-		10'h0EE: cpu_i <= (addrbus[1] | addrbus[0]) ? ppa2_o : ram_o;
+		10'h0EE: cpu_i <= ppa2_o;
 		10'h0EF: cpu_i <= crt_o;
 		10'h0FX: cpu_i <= rom_o;
 		10'h2XX: cpu_i <= rom_o;
@@ -375,7 +375,6 @@ k580vv55 ppa1
 );
 
 wire [7:0] ppa2_o;
-wire [7:0] ppa2_a;
 wire [7:0] ppa2_b;
 wire [7:0] ppa2_c;
 
@@ -391,8 +390,7 @@ k580vv55 ppa2
 	.we_n(ppa2_we_n),
 	.idata(cpu_o), 
 	.odata(ppa2_o), 
-	.ipa(ppa2_a), 
-	.opa(ppa2_a),
+	.ipa(ram_o), 
 	.ipb(ppa2_b), 
 	.opb(ppa2_b), 
 	.ipc(ppa2_c), 
@@ -409,7 +407,9 @@ wire pit_out2;
 
 pit8253 pit
 (
+	.reset(reset),
 	.clk(clk_sys),
+	.ce(clk_f1),
 	.tce(clk_pit),
 	.a(addrbus[1:0]),
 	.wr(~pit_we_n),
@@ -417,8 +417,7 @@ pit8253 pit
 	.din(cpu_o),
 	.dout(pit_o),
 	.gate(3'b111),
-	.out({pit_out2, pit_out1, pit_out0}),
-	.tpsel(0)
+	.out({pit_out2, pit_out1, pit_out0})
 );
 
 assign AUDIO_R = AUDIO_L;
