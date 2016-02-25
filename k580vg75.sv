@@ -38,27 +38,14 @@ module k580vg75
 	input  [7:0] ichar,
 	input        symset,
 	
-	output [7:0] d_init0,
-	output [7:0] d_init1,
-	output [7:0] d_init2,
-	output [7:0] d_init3,
-
 	output reg   drq,
 	output reg   irq,
 	output [3:0] line,
-	output       lten,
-	output       vsp,
-	output       rvv,
 	output       hilight,
 	output [1:0] gattr
 );
 
 parameter CHAR_WIDTH = 5; // char width minus 1
-
-assign d_init0 = init0;
-assign d_init1 = init1;
-assign d_init2 = init2;
-assign d_init3 = init3;
 
 reg[7:0] init0;
 reg[7:0] init1;
@@ -104,9 +91,9 @@ wire[7:0] obuf = lineff ? buf0[opos] : buf1[opos];
 
 assign odata = {1'b0,inte,irq,1'b0,err,enable,2'b0};
 assign line = linemode==0 ? chline : chline==0 ? charheight : chline+4'b1111;
-assign lten = ((attr[5] || (curtype && vcur)) && chline==underline);
-assign vsp = (attr[1] && frame[4]) || (underline[3]==1'b1 && (chline==0||chline==charheight)) || !enable || vspfe || ypos==0;
-assign rvv = attr[4] ^ (curtype==0 && vcur && chline<=underline);
+wire   lten = ((attr[5] || (curtype && vcur)) && chline==underline);
+wire   vsp = (attr[1] && frame[4]) || (underline[3]==1'b1 && (chline==0||chline==charheight)) || !enable || vspfe || ypos==0;
+wire   rvv = attr[4] ^ (curtype==0 && vcur && chline<=underline);
 assign gattr = attr2[3:2];
 assign hilight = attr2[0];
 
@@ -271,8 +258,8 @@ always @(posedge clk) begin
 			h_cnt <= h_cnt+1'b1;
 		end
 
-		if(h_cnt == 2) hblank <= 1;
-		if(h_cnt == 9) hblank <= 0;
+		if(h_cnt == 2)  hblank <= 1;
+		if(h_cnt == 12) hblank <= 0;
 
 		if(h_cnt == 2) hrtc <= 1;
 		if(h_cnt == 8) hrtc <= 0;
