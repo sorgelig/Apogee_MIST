@@ -1,9 +1,9 @@
 //
-// sram.v
+// sram.v v2.0
 //
 // Static RAM controller implementation for slow bus (<10MHz) using SDRAM MT48LC16M16A2
 // 
-// Copyright (c) 2015 Sorgelig
+// Copyright (c) 2015,2016 Sorgelig
 //
 // Some parts of SDRAM code used from project: 
 // http://hamsterworks.co.nz/mediawiki/index.php/Simple_SDRAM_Controller
@@ -21,12 +21,21 @@
 // You should have received a copy of the GNU General Public License 
 // along with this program.  If not, see <http://www.gnu.org/licenses/>. 
 //
+//
+// v2.0: 
+//     Support for 4MBx16 added. 
+//     use 25bit addr and 13bit SDRAM_A for for 16MBx16 chip 
+//     use 23bit addr and 12bit SDRAM_A for for 4MBx16 chip 
+//     No code modification required.
+//    
+//
+
 
 module sram (
 
 	// interface to the MT48LC16M16 chip
 	inout  reg  [15:0] SDRAM_DQ,    // 16 bit bidirectional data bus
-	output reg  [12:0] SDRAM_A,     // 13 bit multiplexed address bus
+	output reg  [12:0] SDRAM_A,     // 13/12 bit multiplexed address bus
 	output reg         SDRAM_DQML,  // two byte masks
 	output reg         SDRAM_DQMH,  // 
 	output reg  [1:0]  SDRAM_BA,    // two banks
@@ -40,7 +49,7 @@ module sram (
 	input  wire        init,			// reset to initialize RAM
 	input  wire        clk_sdram,		// sdram is accessed at 112MHz
 	
-	input  wire [24:0] addr,         // 25 bit address
+	input  wire [24:0] addr,         // 25/23 bit address
 
 	output wire [7:0]  dout,			// data output to cpu
 	input  wire [7:0]  din,			   // data input from cpu
@@ -54,7 +63,7 @@ localparam BURST_LENGTH   = 3'b000; // 000=1, 001=2, 010=4, 011=8
 localparam ACCESS_TYPE    = 1'b0;   // 0=sequential, 1=interleaved
 localparam CAS_LATENCY    = 3'd3;   // 2 for < 100MHz, 3 for >100MHz
 localparam OP_MODE        = 2'b00;  // only 00 (standard operation) allowed
-localparam NO_WRITE_BURST = 1'b1;   // 0= write burst enabled, 1=only single access write
+localparam NO_WRITE_BURST = 1'b0;   // 0= write burst enabled, 1=only single access write
 
 localparam MODE = { 3'b000, NO_WRITE_BURST, OP_MODE, CAS_LATENCY, ACCESS_TYPE, BURST_LENGTH}; 
 
@@ -238,8 +247,8 @@ always @(posedge clk_sdram) begin
 				//--------------------------------
 				state    <= STATE_OPEN_2;
 				command  <= CMD_ACTIVE;
-				SDRAM_A  <= save_addr[22:10];
-				SDRAM_BA <= save_addr[24:23];
+				SDRAM_A  <= {save_addr[23], save_addr[20:9]};
+				SDRAM_BA <= save_addr[22:21];
 			end
 
 			SDRAM_DQML  <= 1'b1;
@@ -273,8 +282,8 @@ always @(posedge clk_sdram) begin
 
 			state       <= STATE_READ_2;
 			command     <= CMD_READ;
-			SDRAM_A     <= {4'b0000, save_addr[9:1]}; 
-			SDRAM_BA    <= save_addr[24:23];
+			SDRAM_A     <= {4'b0000, save_addr[24], save_addr[8:1]}; 
+			SDRAM_BA    <= save_addr[22:21];
 			SDRAM_A[10] <= 1'b0; // A10 actually matters - it selects auto precharge
 
 			// Schedule reading the data values off the bus
@@ -295,8 +304,8 @@ always @(posedge clk_sdram) begin
 			state       <= STATE_WRITE_2;
 			command     <= CMD_WRITE;
 			SDRAM_DQ    <= {save_data, save_data}; // get the DQ bus out of HiZ early
-			SDRAM_A     <= {4'b0000, save_addr[9:1]};
-			SDRAM_BA    <= save_addr[24:23];
+			SDRAM_A     <= {4'b0000, save_addr[24], save_addr[8:1]};
+			SDRAM_BA    <= save_addr[22:21];
 			SDRAM_A[10] <= 1'b0; // A10 actually matters - it selects auto precharge
 		end
 
