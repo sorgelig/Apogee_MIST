@@ -108,7 +108,7 @@ assign lten = ((attr[5] || (curtype && vcur)) && chline==underline);
 assign vsp = (attr[1] && frame[4]) || (underline[3]==1'b1 && (chline==0||chline==charheight)) || !enable || vspfe || ypos==0;
 assign rvv = attr[4] ^ (curtype==0 && vcur && chline<=underline);
 assign gattr = attr2[3:2];
-assign hilight = ochar[7] ? ochar[0] : attr2[0];
+assign hilight = attr2[0];
 
 reg[3:0] d_cnt;
 reg[7:0] data;
@@ -123,8 +123,10 @@ always @(negedge clk_pix) begin
 end
 
 always @(posedge clk_pix) begin
-	if (!d_cnt) data <= ypos>(maxy+1'd1) ? 8'd0 : ochar[7] ? gdata : lten ? 8'hFF : {8{rvv}} ^ (vsp ? 8'b0 : fdata);
-		else data <= {data[6:0],1'b0};
+	if (!d_cnt) begin 
+		data <= ypos>(maxy+1'd1) ? 8'd0 : ochar[7] ? gdata : lten ? 8'hFF : {8{rvv}} ^ (vsp ? 8'b0 : fdata);
+		attr2 <= ochar[7] ? ochar[0] : attr;
+	end else data <= {data[6:0],1'b0};
 end
 
 wire [7:0] gdata = (ochar[1] && frame[4]) ? 8'd0 : gchar[{ochar[5:2], chline>underline, chline==underline}];
@@ -208,7 +210,6 @@ always @(posedge clk) begin
 
 			oposf <= 0; opos <= {2'b0,maxx[6:1]}+8'hD0;
 		end else if (ypos!=0) begin
-			attr2 <= attr;
 			if (obuf[7:2]==6'b111100) begin
 				if (obuf[1]) vspfe <= 1'b1;
 			end else
