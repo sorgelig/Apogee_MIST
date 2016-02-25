@@ -152,7 +152,7 @@ reg [7:0] gchar[64] = '{
 
 font from(.address({symset, ochar[6:0],line[2:0]}), .clock(clk_pix), .q(fdata));
 
-wire hrst = (h_cnt == 75);
+wire hrst = !h_cnt;
 wire vrst = (((10'd310 - l_total)>>1) == v_cnt) & hrst;
 
 reg[9:0] h_cnt;
@@ -258,7 +258,7 @@ always @(posedge clk) begin
 		end
 		
 		//fixed resolution 534x312 with real resolution centered inside
-		if (h_cnt == 84) begin
+		if (h_cnt == 88) begin
 			h_cnt <= 0;
 			if (v_cnt == 311) begin 
 				v_cnt <= 0;
@@ -269,11 +269,13 @@ always @(posedge clk) begin
 			end
 		end else begin
 			h_cnt <= h_cnt+1'b1;
-			if(h_cnt == 79) hblank <= 1;
-			if(h_cnt == 79) hrtc <= 1;
-			if(h_cnt == 83) hrtc <= 0;
-			if(h_cnt == 1)  hblank <= 0;
 		end
+
+		if(h_cnt == 2) hblank <= 1;
+		if(h_cnt == 9) hblank <= 0;
+
+		if(h_cnt == 2) hrtc <= 1;
+		if(h_cnt == 8) hrtc <= 0;
 	end
 end
 
