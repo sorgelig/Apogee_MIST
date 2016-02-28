@@ -200,12 +200,12 @@ always_comb begin
 end
 
 wire pit_we_n  = mode86 ? addrbus[15:11]!=5'b10100|cpu_wr_n : addrbus[15:8]!=8'hEC|cpu_wr_n;
-wire pit_rd    = mode86 ? addrbus[15:11]==5'b10100&cpu_rd   : addrbus[15:8]==8'hEC&cpu_rd;
-wire ppa1_we_n = mode86 ? addrbus[15:13]!=3'b100|cpu_wr_n   : addrbus[15:8]!=8'hED|cpu_wr_n;
+wire pit_rd_n  = mode86 ? addrbus[15:11]!=5'b10100|~cpu_rd  : addrbus[15:8]!=8'hEC|~cpu_rd;
+wire ppa1_we_n = mode86 ? addrbus[15:13]!=3'b100  |cpu_wr_n : addrbus[15:8]!=8'hED|cpu_wr_n;
 wire ppa2_we_n = mode86 ? 1'b1                              : addrbus[15:8]!=8'hEE|cpu_wr_n;
-wire crt_we_n  = mode86 ? addrbus[15:13]!=3'b110|cpu_wr_n   : addrbus[15:8]!=8'hEF|cpu_wr_n;
-wire crt_rd_n  = mode86 ? addrbus[15:13]!=3'b110|~cpu_rd    : addrbus[15:8]!=8'hEF|~cpu_rd;
-wire dma_we_n  = mode86 ? addrbus[15:13]!=3'b111|cpu_wr_n   : addrbus[15:8]!=8'hF0|cpu_wr_n;
+wire crt_we_n  = mode86 ? addrbus[15:13]!=3'b110  |cpu_wr_n : addrbus[15:8]!=8'hEF|cpu_wr_n;
+wire crt_rd_n  = mode86 ? addrbus[15:13]!=3'b110  |~cpu_rd  : addrbus[15:8]!=8'hEF|~cpu_rd;
+wire dma_we_n  = mode86 ? addrbus[15:13]!=3'b111  |cpu_wr_n : addrbus[15:8]!=8'hF0|cpu_wr_n;
 
 k580vm80a cpu
 (
@@ -405,15 +405,14 @@ wire pit_out0;
 wire pit_out1;
 wire pit_out2;
 
-pit8253 pit
+k580vi53 pit
 (
 	.reset(reset),
-	.clk(clk_sys),
-	.ce(clk_f1),
-	.tce(clk_pit),
-	.a(addrbus[1:0]),
+	.clk_sys(clk_sys),
+	.clk_timer({clk_pit,clk_pit,clk_pit}),
+	.addr(addrbus[1:0]),
 	.wr(~pit_we_n),
-	.rd(pit_rd),
+	.rd(~pit_rd_n),
 	.din(cpu_o),
 	.dout(pit_o),
 	.gate(3'b111),
