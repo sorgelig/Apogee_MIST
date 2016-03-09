@@ -111,8 +111,8 @@ end
 
 always @(posedge clk_pix) begin
 	if (!d_cnt) begin 
-		data <= ypos>(maxy+1'd1) ? 8'd0 : ochar[7] ? gdata : lten ? 8'hFF : {8{rvv}} ^ (vsp ? 8'b0 : fdata);
-		attr2 <= ochar[7] ? ochar[0] : attr;
+		data <= ypos>(maxy+1'd1) ? 8'd0 : {8{rvv}} ^ (ochar[7] ? gdata : lten ? 8'hFF : (vsp ? 8'b0 : fdata));
+		attr2 <= ochar[7] ? {attr[4:2], 1'b0, ochar[0]} : attr;
 	end else data <= {data[6:0],1'b0};
 end
 
