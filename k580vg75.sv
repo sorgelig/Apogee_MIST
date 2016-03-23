@@ -92,7 +92,7 @@ wire[7:0] obuf = lineff ? buf0[opos] : buf1[opos];
 assign odata = {1'b0,inte,irq,1'b0,err,enable,2'b0};
 assign line = linemode==0 ? chline : chline==0 ? charheight : chline+4'b1111;
 wire   lten = ((attr[5] || (curtype && vcur)) && chline==underline);
-wire   vsp = (attr[1] && frame[4]) || (underline[3]==1'b1 && (chline==0||chline==charheight)) || !enable || vspfe || ypos==0;
+wire   vsp = (attr[1] && frame[4]) || (underline[3]==1'b1 && (chline==0||chline==charheight)) || !enable || ypos==0;
 wire   rvv = attr[4] ^ (curtype==0 && vcur && chline<=underline);
 assign gattr = attr2[3:2];
 assign hilight = attr2[0];
@@ -111,7 +111,7 @@ end
 
 always @(posedge clk_pix) begin
 	if (!d_cnt) begin 
-		data <= ypos>(maxy+1'd1) ? 8'd0 : {8{rvv}} ^ (ochar[7] ? gdata : lten ? 8'hFF : (vsp ? 8'b0 : fdata));
+		data <= ((ypos>(maxy+1'd1)) || vspfe) ? 8'd0 : {8{rvv}} ^ (ochar[7] ? gdata : lten ? 8'hFF : (vsp ? 8'b0 : fdata));
 		attr2 <= ochar[7] ? {attr[4:2], 1'b0, ochar[0]} : attr;
 	end else data <= {data[6:0],1'b0};
 end
@@ -187,13 +187,14 @@ always @(posedge clk) begin
 				exattr <= attr; iposf <= 0; ipos <= 0;
 				ypos <= ypos + 1'b1;
 				if (ypos==maxy) irq <= 1'b1;
+				if(!dmae) vspfe <= 1;
 			end else begin
 				chline <= chline + 1'b1;
 				attr <= exattr;
 			end
 
-			if(vrtc || (ypos == (maxy+1'b1))) l_total <= l_cnt;
-				else if(ypos <= maxy) l_cnt <= l_cnt + 1'd1;
+			if((ypos <= maxy) && !vspfe && (l_cnt<310)) l_cnt <= l_cnt + 1'd1;
+				else l_total <= l_cnt;
 
 			oposf <= 0; opos <= {2'b0,maxx[6:1]}+8'hD0;
 		end else if (ypos!=0) begin
