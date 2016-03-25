@@ -129,6 +129,8 @@ reg [7:0] gchar[64] = '{
 
 font from(.address({symset, ochar[6:0],line[2:0]}), .clock(clk_pix), .q(fdata));
 
+wire [5:0] bs_table[8] = '{6'd0,6'd7,6'd15,6'd23,6'd31,6'd39,6'd47,6'd55};
+
 reg  eos;
 wire disp = ((ypos <= maxy) & ~eos);
 
@@ -145,6 +147,10 @@ always @(posedge clk) begin
 	reg [9:0] v_cnt;
 	reg       exwe_n,exrd_n,exdack;
 	reg       istate;
+	reg [2:0] dma_bs;
+	reg [1:0] dma_bc;
+	reg [5:0] cur_bs;
+	reg [3:0] cur_bc;
 
 	exwe_n <= iwe_n; exrd_n <= ird_n;
 	if(ird_n & ~exrd_n) begin
@@ -155,7 +161,7 @@ always @(posedge clk) begin
 		if (iaddr) begin
 			case (idata[7:5])
 				0: {enable,dmae,inte,pstate} <= 6'd1;
-				1: {enable,inte} <= 2'b11;
+				1: {enable,inte,dma_bs,dma_bc} <= {2'b11, idata[4:0]};
 				2: {enable,dmae} <= 0;
 				3: pstate <= 5;
 				4: pstate <= 5;
@@ -188,7 +194,15 @@ always @(posedge clk) begin
 				if(ichar[1]) dmae <= 0;
 			end else begin
 				ipos <= ipos + 1'b1;
-				if(ipos >= maxx) drq <= 0;
+				if(ipos >= maxx) begin 
+					drq <= 0;
+				end else if(bs_table[dma_bs]) begin
+					cur_bc <= cur_bc - 1'd1;
+					if(cur_bc == 1) begin
+						drq <= 0;
+						cur_bs <= bs_table[dma_bs];
+					end
+				end
 			end
 			istate <= (ichar[7:6]==2'b10) ? ~fillattr : 1'b0;
 		end
@@ -201,6 +215,13 @@ always @(posedge clk) begin
 	end
 
 	if(clk_char) begin
+		if(cur_bs) begin
+			cur_bs <= cur_bs - 1'd1;
+			if(cur_bs == 1) begin
+				cur_bc <= 4'd1<<dma_bc;
+				drq <= ((ipos < maxx) & dmae);
+			end
+		end
 		if(!h_cnt) begin
 			if(!v_cnt) begin
 				chline <= 0; ypos   <= 0;
@@ -209,8 +230,12 @@ always @(posedge clk) begin
 				attr   <= 0; exattr <= 0; 
 				l_cnt  <= 0;
 				frame  <= frame + 1'b1;
-				dmae   <= enable;
-				drq    <= enable;
+				cur_bs <= 0;
+				if(enable) begin
+					dmae <= 1;
+					drq  <= 1;
+					cur_bc <= 4'd1<<dma_bc;
+				end
 			end else begin
 				if (chline==charheight) begin
 					chline <= 0; iposf <= 0; ipos <= 0;
@@ -220,7 +245,11 @@ always @(posedge clk) begin
 					if(ypos==maxy) irq <= 1;
 					if(!disp) vspfe <= 1;
 					if(drq) {dmae,drq} <= 0; // DMA is't running. Try next frame.
-					if((ypos < maxy) & dmae) drq <= 1;
+					cur_bs <= 0;
+					if((ypos < maxy) & dmae) begin
+						drq <= 1;
+						cur_bc <= 4'd1<<dma_bc;
+					end
 				end else begin
 					chline <= chline + 1'b1;
 					attr   <= exattr;
