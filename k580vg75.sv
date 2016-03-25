@@ -221,7 +221,7 @@ always @(posedge clk) begin
 					ypos   <= ypos + 1'b1;
 					if(ypos==maxy) irq <= 1;
 					if((ypos>maxy) || eos) vspfe <= 1;
-					if(drq) {dmae,drq,enable} <= 0; // DMA is't running. Shutdown the video.
+					if(drq) {dmae,drq} <= 0; // DMA is't running. Try next frame.
 				end else begin
 					chline <= chline + 1'b1;
 					attr   <= exattr;
