@@ -85,16 +85,15 @@ pll pll
 	.c2(clk_sys)
 );
 
-wire clk_sys;       // 50Mhz
-wire clk_ram;       // 100MHz
-reg  clk_io;        // 25MHz
+wire clk_sys;       // 48Mhz
+wire clk_ram;       // 72MHz
+reg  clk_io;        // 24MHz
                     //
                     // strobes:
-reg  clk_f1,clk_f2; // 1.78MHz/3.5MHz
+reg  clk_f1,clk_f2; // 1.78MHz/3.56MHz
 reg  clk_pix;       // 8MHz
 reg  clk_pix2x;     // 16MHz
 reg  clk_pit;       // 1.78MHz
-reg  clk_dma;       // 1.78MHz
 reg  clk_ps2;       // 14KHz
 
 always @(negedge clk_sys) begin
@@ -119,8 +118,7 @@ always @(negedge clk_sys) begin
 	clk_f2 <= ((cpu_div == 2) | (turbo & (cpu_div == 16)));
 
 	clk_pit <= (cpu_div == 4);
-	clk_dma <= (cpu_div == 4);
-	
+
 	ps2_div <= ps2_div+1;
 	if(ps2_div == 3570) ps2_div <=0;
 	clk_ps2 <= !ps2_div;
@@ -146,17 +144,48 @@ always @(posedge clk_sys) begin
 end
 
 ////////////////////   MEM   ////////////////////
-wire[7:0] ram_o;
+wire  [7:0] ram_dout;
+reg   [7:0] ram_din;
+reg  [24:0] ram_addr;
+reg         ram_we;
+reg         ram_rd;
+
+always_comb begin
+	casex({ioctl_download, hlda})
+		2'b1X:
+			begin
+				ram_din  <= ioctl_data;
+				ram_addr <= ioctl_addr;
+				ram_we   <= ioctl_wr;
+				ram_rd   <= 0;
+			end
+		2'b01:
+			begin
+				ram_din  <= 0;
+				ram_addr <= vid_addr;
+				ram_we   <= 0;
+				ram_rd   <= !dma_oiord_n;
+			end
+		2'b00:
+			begin
+				ram_din  <= cpu_o;
+				ram_addr <= addr;
+				ram_we   <= !cpu_wr_n && !ppa2_a_acc;
+				ram_rd   <= cpu_rd;
+			end
+	endcase
+end
+
 sram sram
 ( 
 	.*,
 	.init(!locked),
 	.clk_sdram(clk_ram),
-	.dout(ram_o),
-	.din( ioctl_download ? ioctl_data : cpu_o),
-	.addr(ioctl_download ? ioctl_addr : hlda ? vid_addr     : addr),
-	.we(  ioctl_download ? ioctl_wr   : hlda ? 1'b0         : !cpu_wr_n && !ppa2_a_acc),
-	.rd(  ioctl_download ? 1'b0       : hlda ? !dma_oiord_n : cpu_rd)
+	.dout(ram_dout),
+	.din(ram_din),
+	.addr(ram_addr),
+	.we(ram_we),
+	.rd(ram_rd)
 );
 
 wire ppa2_a_acc = !mode86 && ((addrbus[15:8] == 8'hEE) && (addrbus[1:0] == 2'd0));
@@ -195,7 +224,7 @@ always_comb begin
 		10'b01110XXXXX: cpu_i <= crt_o;
 		10'b01111XXXXX: cpu_i <= rom86_o;
 		10'b11XXXXXXXX: cpu_i <= rom86_o;
-		default: cpu_i <= ram_o;
+		default: cpu_i <= ram_dout;
 	endcase
 end
 
@@ -242,7 +271,7 @@ wire hrq;
 k580vt57 dma
 (
 	.clk(clk_sys), 
-	.ce(clk_dma), 
+	.ce(clk_f2), 
 	.reset(reset),
 	.iaddr(addrbus[3:0]), 
 	.idata(cpu_o), 
@@ -272,7 +301,7 @@ k580vg75 crt
 	.hrtc(hsync),
 	.pix(pix),
 	.dack(dma_dack[2]),
-	.ichar(ram_o),
+	.ichar(ram_dout),
 	.drq(vid_drq),
 	.irq(vid_irq),
 	.odata(crt_o),
@@ -390,7 +419,7 @@ k580vv55 ppa2
 	.we_n(ppa2_we_n),
 	.idata(cpu_o), 
 	.odata(ppa2_o), 
-	.ipa(ram_o), 
+	.ipa(ram_dout), 
 	.ipb(ppa2_b), 
 	.opb(ppa2_b), 
 	.ipc(ppa2_c), 
