@@ -128,6 +128,9 @@ always @(posedge clk or posedge reset) begin
 						chaddr[channel] <= chaddr[channel]+1'b1;
 						chtcnt[channel][13:0] <= chtcnt[channel][13:0]+14'h3FFF;
 					end
+					state <= ST_T3;
+				end
+				ST_T3: begin
 					state <= |mdrq ? ST_WAIT : ST_IDLE;
 				end
 			endcase

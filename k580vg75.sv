@@ -51,7 +51,6 @@ reg[7:0] init0;
 reg[7:0] init1;
 reg[7:0] init2;
 reg[7:0] init3;
-reg enable,inte,dmae;
 reg[6:0] curx;
 reg[5:0] cury;
 
@@ -65,25 +64,17 @@ wire curblink = init3[5]; // 0 - blink
 wire curtype  = init3[4]; // 0 - block, 1 - underline
 
 reg[7:0] ochar;
-
 reg[3:0] chline;
 reg[5:0] attr;
 reg[5:0] attr2;
-reg[5:0] exattr;
-reg[3:0] iposf;
-reg[3:0] oposf;
 reg[6:0] ipos;
 reg[7:0] opos;
 reg[6:0] ypos;
 reg[4:0] frame;
 reg      lineff,err,vspfe;
-reg[6:0] fifo0[15:0];
-reg[6:0] fifo1[15:0];
+reg      enable,inte,dmae;
 reg[7:0] buf0[79:0];
 reg[7:0] buf1[79:0];
-reg[2:0] pstate;
-reg[9:0] l_cnt;
-reg[9:0] l_total;
 
 wire vcur = opos=={1'b0,curx} && ypos==cury && (frame[3]|curblink);
 wire[7:0] obuf = lineff ? buf0[opos] : buf1[opos];
@@ -138,21 +129,29 @@ reg [7:0] gchar[64] = '{
 
 font from(.address({symset, ochar[6:0],line[2:0]}), .clock(clk_pix), .q(fdata));
 
-wire     set_drq = (ipos < maxx) & (ypos <= maxy) & dmae;
+reg  eos;
+wire disp = ((ypos <= maxy) & ~eos);
 
 always @(posedge clk) begin
-	reg[9:0] h_cnt;
-	reg[9:0] v_cnt;
-	reg eos;
-	reg exwe_n,exrd_n,exdack;
-	reg istate;
+	reg [5:0] exattr;
+	reg [3:0] iposf;
+	reg [3:0] oposf;
+	reg [6:0] fifo0[15:0];
+	reg [6:0] fifo1[15:0];
+	reg [2:0] pstate;
+	reg [9:0] l_cnt;
+	reg [9:0] l_total;
+	reg [9:0] h_cnt;
+	reg [9:0] v_cnt;
+	reg       exwe_n,exrd_n,exdack;
+	reg       istate;
 
 	exwe_n <= iwe_n; exrd_n <= ird_n;
 	if(ird_n & ~exrd_n) begin
 		irq <= 0;
 		err <= 0;
 	end
-	if (iwe_n & ~exwe_n) begin
+	if (~iwe_n & exwe_n) begin
 		if (iaddr) begin
 			case (idata[7:5])
 				0: {enable,dmae,inte,pstate} <= 6'd1;
@@ -179,7 +178,6 @@ always @(posedge clk) begin
 
 	exdack <= dack;
 	if(!exdack & dack) begin
-		drq <= set_drq;
 		if(istate) begin
 			iposf  <= iposf + 1'b1;
 			istate <= 0;
@@ -190,6 +188,7 @@ always @(posedge clk) begin
 				if(ichar[1]) dmae <= 0;
 			end else begin
 				ipos <= ipos + 1'b1;
+				if(ipos >= maxx) drq <= 0;
 			end
 			istate <= (ichar[7:6]==2'b10) ? ~fillattr : 1'b0;
 		end
@@ -203,7 +202,6 @@ always @(posedge clk) begin
 
 	if(clk_char) begin
 		if(!h_cnt) begin
-			drq <= set_drq;
 			if(!v_cnt) begin
 				chline <= 0; ypos   <= 0;
 				iposf  <= 0; ipos   <= 0;
@@ -220,14 +218,15 @@ always @(posedge clk) begin
 					exattr <= attr;
 					ypos   <= ypos + 1'b1;
 					if(ypos==maxy) irq <= 1;
-					if((ypos>maxy) || eos) vspfe <= 1;
+					if(!disp) vspfe <= 1;
 					if(drq) {dmae,drq} <= 0; // DMA is't running. Try next frame.
+					if((ypos < maxy) & dmae) drq <= 1;
 				end else begin
 					chline <= chline + 1'b1;
 					attr   <= exattr;
 				end
 
-				if((ypos <= maxy) && !eos && (l_cnt<308)) l_cnt <= l_cnt + 1'd1;
+				if(disp && (l_cnt<308)) l_cnt <= l_cnt + 1'd1;
 					else l_total <= l_cnt;
 			end
 			oposf <= 0;
@@ -254,9 +253,9 @@ always @(posedge clk) begin
 		end
 
 		//fixed resolution 516x312(516x262) with real resolution centered inside
-		if (h_cnt == 85) begin
+		if(h_cnt == 85) begin
 			h_cnt <= 0;
-			if((l_total > 20) && (l_total < 257) && ((ypos > maxy) || eos)) begin
+			if((l_total > 20) && (l_total < 257) && !disp) begin
 				if (v_cnt == 261) v_cnt <= 0;
 					else v_cnt <= v_cnt+1'b1;
 
@@ -272,10 +271,9 @@ always @(posedge clk) begin
 		end else begin
 			h_cnt <= h_cnt+1'b1;
 		end
-		
 
-		if(h_cnt == 80)  hblank <= 1;
-		if(h_cnt == 3) hblank <= 0;
+		if(h_cnt == 80) hblank <= 1;
+		if(h_cnt == 3)  hblank <= 0;
 
 		if(h_cnt == 80) hrtc <= 1;
 		if(h_cnt == 85) hrtc <= 0;
