@@ -31,7 +31,6 @@ module data_io
 
 	input   [1:0] reset,
 	output        downloading,   // signal indicating an active download
-	output [24:0] size,          // number of bytes in input buffer
    output reg [4:0]  index,     // menu index used to upload the file
 	 
 	// external ram interface
@@ -41,10 +40,9 @@ module data_io
 	output [7:0]  d
 );
 
-assign downloading = downloading_reg;
-assign d = data;
-assign a = write_a;
-assign size = addr - 25'h200000;   // only valid for tape
+assign downloading = downloading_reg || erasing;
+assign d = erasing ? 8'h00      : data;
+assign a = erasing ? erase_addr : write_a;
 
 reg [6:0]  sbuf;
 reg [7:0]  cmd;
@@ -52,8 +50,13 @@ reg [7:0]  data;
 reg [4:0]  cnt;
 
 reg [24:0] addr;
+reg [24:0] waddr;
 reg [24:0] write_a = 25'h200000;
+reg [24:0] erase_addr = 0;
 reg        rclk = 1'b0;
+reg        erase_trigger;
+reg        erasing = 0;
+reg [24:0] erase_mask;
 
 localparam UIO_FILE_TX      = 8'h53;
 localparam UIO_FILE_TX_DAT  = 8'h54;
@@ -74,6 +77,7 @@ always@(posedge sck, posedge ss) begin
 		cnt <= 5'd0;
 	else begin
 		rclk <= 1'b0;
+		erase_trigger <= 1'b0;
 
 		// don't shift in last bit. It is evaluated directly
 		// when writing to ram
@@ -105,6 +109,10 @@ always@(posedge sck, posedge ss) begin
 				downloading_reg <= 1'b1; 
 			end else begin
 				downloading_reg <= 1'b0; 
+				if(new_index) begin
+					waddr <= addr;
+					erase_trigger <= 1;
+				end
 			end
 		end
 
@@ -134,13 +142,40 @@ always@(posedge sck, posedge ss) begin
 	end
 end
 
-reg rclkD, rclkD2;
+wire [24:0] next_addr = (erase_addr + 25'd1) & erase_mask;
+
 always@(posedge clk) begin
+	reg rclkD, rclkD2;
+	reg eraseD, eraseD2;
+	reg  [4:0] erase_clk_div;
+	reg [24:0] end_addr;
 	rclkD <= rclk;
 	rclkD2 <= rclkD;
-	wr <= 1'b0;
+	wr <= 0;
+	
+	if(rclkD && !rclkD2) wr <= 1;
 
-	if(rclkD && !rclkD2) wr <= 1'b1;
-end
+	eraseD <= erase_trigger;
+	eraseD2 <= eraseD;
+
+	// start erasing
+	if(eraseD && !eraseD2) begin
+		erase_clk_div <= 0;
+		erase_addr <= waddr;
+		erase_mask <= 25'hFFFF;
+		end_addr <= start_addr;
+		erasing <= 1;
+	end else begin
+		erase_clk_div <= erase_clk_div + 5'd1;
+		if(!erase_clk_div) begin
+			if(next_addr != end_addr) begin
+				erase_addr <= next_addr;
+				if(next_addr > 2) wr <= 1;
+			end else begin
+				erasing <= 0;
+			end
+		end
+	end
+end 
 
 endmodule

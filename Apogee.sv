@@ -461,7 +461,6 @@ sigma_delta_dac #(.MSBI(2)) dac
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_data;
-wire [24:0] ioctl_size;
 wire        ioctl_download;
 wire  [4:0] ioctl_index;
 
@@ -471,7 +470,6 @@ data_io data_io(
 	.sdi(SPI_DI),
 
 	.downloading(ioctl_download),
-	.size(ioctl_size),
 	.index(ioctl_index),
 	.reset({reset_key[2], reset}),
 
