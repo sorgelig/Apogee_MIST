@@ -45,7 +45,6 @@ end
 
 reg[2:0] c;
 reg[3:0] r;
-reg extkey;
 reg unpress;
 reg[3:0] prev_clk;
 reg[11:0] shift_reg;
@@ -192,7 +191,6 @@ always @(posedge clk) begin
 	if(!old_reset && reset) begin
 		prev_clk <= 0;
 		shift_reg <= 12'hFFF;
-		extkey <= 0;
 		unpress <= 0;
 		keystate[0] <= 0;
 		keystate[1] <= 0;
@@ -216,10 +214,8 @@ always @(posedge clk) begin
 					if (kcode==8'h12) mshift <= ~unpress;
 					if (kcode==8'h59) mshift <= ~unpress;
 					if (kcode==8'h78) reset_key <= {(malt & ~unpress), (mshift & ~unpress), ((mctrl | mshift | malt) & ~unpress)};
-					if (kcode==8'hE0) extkey  <= 1'b1; else
 					if (kcode==8'hF0) unpress <= 1'b1; else
 					begin
-						extkey <= 0;
 						unpress <= 0;
 						if(r!=4'hF) keystate[r][c] <= ~unpress;
 					end
