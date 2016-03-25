@@ -271,7 +271,7 @@ wire hrq;
 k580vt57 dma
 (
 	.clk(clk_sys), 
-	.ce(clk_f2), 
+	.dma_ce(clk_f2), 
 	.reset(reset),
 	.iaddr(addrbus[3:0]), 
 	.idata(cpu_o), 

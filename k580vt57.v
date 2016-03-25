@@ -18,7 +18,7 @@
 module k580vt57
 (
 	input         clk,
-	input         ce,
+	input         dma_ce,
 	input         reset,
 	input   [3:0] iaddr,
 	input   [7:0] idata,
@@ -36,28 +36,28 @@ module k580vt57
 	output        oiord_n 
 );
 
-parameter ST_IDLE = 3'b000;
-parameter ST_WAIT = 3'b001;
-parameter ST_T1   = 3'b010;
-parameter ST_T2   = 3'b011;
-parameter ST_T3   = 3'b100;
-parameter ST_T4   = 3'b101;
-parameter ST_T5   = 3'b110;
-parameter ST_T6   = 3'b111;
+parameter ST_IDLE = 0;
+parameter ST_WAIT = 1;
+parameter ST_T1   = 2;
+parameter ST_T2   = 3;
+parameter ST_T3   = 4;
+parameter ST_T4   = 5;
+parameter ST_T5   = 6;
+parameter ST_T6   = 7;
 
 
 reg  [3:0] ack;
 reg  [2:0] state;
 reg  [1:0] channel;
 reg  [7:0] mode;
-reg  [4:0] chstate;
+reg  [3:0] chstate;
 reg [15:0] chaddr[3:0];
 reg [15:0] chtcnt[3:0];
 reg        ff,exiwe_n;
 
 assign dack    = ack;
 assign hrq     = state!=ST_IDLE;
-assign odata   = {3'b0,chstate};
+assign odata   = {4'd0, chstate};
 assign oaddr   = chaddr[channel];
 assign owe_n   = chtcnt[channel][14]==0 || state!=ST_T2;
 assign ord_n   = chtcnt[channel][15]==0 || (state!=ST_T1 && state!=ST_T2);
@@ -68,70 +68,68 @@ wire[3:0] mdrq = drq & mode[3:0];
 
 always @(posedge clk or posedge reset) begin
 	if (reset) begin
-		state <= 0; ff <= 0; mode <= 0; exiwe_n <= 1'b1;
+		state <= 0; ff <= 0; mode <= 0; exiwe_n <= 1;
 		chstate <= 0; ack <= 0;
 	end else begin
 		exiwe_n <= iwe_n;
 		if (iwe_n && ~exiwe_n) begin
 			ff <= ~(ff|iaddr[3]);
-			if (ff) begin
-				if(iaddr==4'b0000) chaddr[0][15:8] <= idata;
-				if(iaddr==4'b0001) chtcnt[0][15:8] <= idata;
-				if(iaddr==4'b0010) chaddr[1][15:8] <= idata;
-				if(iaddr==4'b0011) chtcnt[1][15:8] <= idata;
-				if(iaddr==4'b0100) chaddr[2][15:8] <= idata;
-				if(iaddr==4'b0101) chtcnt[2][15:8] <= idata;
-				if(iaddr==4'b0110 || (iaddr==4'b0100 && mode[7]==1'b1)) chaddr[3][15:8] <= idata;
-				if(iaddr==4'b0111 || (iaddr==4'b0101 && mode[7]==1'b1)) chtcnt[3][15:8] <= idata;
-			end else begin
-				if(iaddr==4'b0000) chaddr[0][7:0] <= idata;
-				if(iaddr==4'b0001) chtcnt[0][7:0] <= idata;
-				if(iaddr==4'b0010) chaddr[1][7:0] <= idata;
-				if(iaddr==4'b0011) chtcnt[1][7:0] <= idata;
-				if(iaddr==4'b0100) chaddr[2][7:0] <= idata;
-				if(iaddr==4'b0101) chtcnt[2][7:0] <= idata;
-				if(iaddr==4'b0110 || (iaddr==4'b0100 && mode[7]==1'b1)) chaddr[3][7:0] <= idata;
-				if(iaddr==4'b0111 || (iaddr==4'b0101 && mode[7]==1'b1)) chtcnt[3][7:0] <= idata;
-			end
-			if (iaddr[3]) mode <= idata;
+			case({ff, iaddr})
+				5'b00000: chaddr[0][7:0]  <= idata;
+				5'b00001: chtcnt[0][7:0]  <= idata;
+				5'b00010: chaddr[1][7:0]  <= idata;
+				5'b00011: chtcnt[1][7:0]  <= idata;
+				5'b00100: begin chaddr[2][7:0]  <= idata; if(mode[7]) chaddr[3][7:0]  <= idata; end
+				5'b00101: begin chtcnt[2][7:0]  <= idata; if(mode[7]) chtcnt[3][7:0]  <= idata; end
+				5'b00110: chaddr[3][7:0]  <= idata;
+				5'b00111: chtcnt[3][7:0]  <= idata;
+				5'b10000: chaddr[0][15:8] <= idata;
+				5'b10001: chtcnt[0][15:8] <= idata;
+				5'b10010: chaddr[1][15:8] <= idata;
+				5'b10011: chtcnt[1][15:8] <= idata;
+				5'b10100: begin chaddr[2][15:8] <= idata; if(mode[7]) chaddr[3][15:8] <= idata; end
+				5'b10101: begin chtcnt[2][15:8] <= idata; if(mode[7]) chtcnt[3][15:8] <= idata; end
+				5'b10110: chaddr[3][15:8] <= idata;
+				5'b10111: chtcnt[3][15:8] <= idata;
+				5'b01000: {ff,mode} <= {1'b0,idata};
+				5'b11000: {ff,mode} <= {1'b0,idata};
+				 default: ;
+			endcase
 		end
-		if (ce) begin
+
+		if(dma_ce) begin
 			case (state)
-			ST_IDLE: begin
-				if (|mdrq) state <= ST_WAIT;
-			end
-			ST_WAIT: begin
-				if (hlda) state <= ST_T1;
-				casex (mdrq[3:1])
-					3'b1xx: channel <= 2'b11;
-					3'b01x: channel <= 2'b10;
-					3'b001: channel <= 2'b01;
-					3'b000: channel <= 2'b00;
-				endcase
-			end
-			ST_T1: begin
-				state <= ST_T2;
-				ack[channel] <= 1'b1;
-			end
-			ST_T2: begin
-				if (mdrq[channel]==0) begin
+				ST_IDLE: begin
+					if (|mdrq) state <= ST_WAIT;
+				end
+				ST_WAIT: begin
+					if (hlda) state <= ST_T1;
+					casex (mdrq[3:0])
+						4'b1xxx: channel <= 3;
+						4'b01xx: channel <= 2;
+						4'b001x: channel <= 1;
+						4'b0001: channel <= 0;
+						4'b0000: state   <= ST_IDLE;
+					endcase
+				end
+				ST_T1: begin
+					state <= ST_T2;
+					ack[channel] <= 1;
+				end
+				ST_T2: begin
 					ack[channel] <= 0;
-					if (chtcnt[channel][13:0]==0) begin
-						chstate[channel] <= 1'b1;
-						if (mode[7]==1'b1 && channel==2'b10) begin
-							chaddr[channel] <= chaddr[2'b11];
-							chtcnt[channel][13:0] <= chtcnt[2'b11][13:0];
+					if(!chtcnt[channel][13:0]) begin
+						chstate[channel] <= 1;
+						if (mode[7] && channel==2) begin
+							chaddr[channel] <= chaddr[3];
+							chtcnt[channel][13:0] <= chtcnt[3][13:0];
 						end
 					end else begin
 						chaddr[channel] <= chaddr[channel]+1'b1;
 						chtcnt[channel][13:0] <= chtcnt[channel][13:0]+14'h3FFF;
 					end
-					state <= ST_T3;
+					state <= |mdrq ? ST_WAIT : ST_IDLE;
 				end
-			end
-			ST_T3: begin
-				state <= |mdrq ? ST_WAIT : ST_IDLE;
-			end
 			endcase
 		end
 	end
