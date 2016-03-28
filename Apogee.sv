@@ -164,7 +164,7 @@ always_comb begin
 				ram_din  <= 0;
 				ram_addr <= vid_addr;
 				ram_we   <= 0;
-				ram_rd   <= !dma_oiord_n;
+				ram_rd   <= !dma_rd_n;
 			end
 		2'b00:
 			begin
@@ -209,32 +209,35 @@ wire        cpu_inta_n;
 wire        inte;
 reg         startup;
 
+reg ppa1_sel, ppa2_sel, pit_sel, crt_sel, dma_sel;
 always_comb begin
+	ppa1_sel =0;
+	ppa2_sel =0;
+	pit_sel  =0;
+	crt_sel  =0;
+	dma_sel  =0;
 	casex({startup, mode86, addrbus[15:8]})
-		10'h0EC: cpu_i <= pit_o;
-		10'h0ED: cpu_i <= ppa1_o;
-		10'h0EE: cpu_i <= ppa2_o;
-		10'h0EF: cpu_i <= crt_o;
-		10'h0FX: cpu_i <= rom_o;
-		10'h2XX: cpu_i <= rom_o;
-		10'b01100XXXXX: cpu_i <= ppa1_o;
-		10'b0110100XXX: cpu_i <= pit_o;
-		10'b0110101XXX: cpu_i <= 0; // sd_o
-		10'b011011XXXX: cpu_i <= 0; // ???
-		10'b01110XXXXX: cpu_i <= crt_o;
-		10'b01111XXXXX: cpu_i <= rom86_o;
-		10'b11XXXXXXXX: cpu_i <= rom86_o;
+
+		// Apogee
+		10'b0011101100: begin cpu_i <= pit_o;   pit_sel  <= 1; end
+		10'b0011101101: begin cpu_i <= ppa1_o;  ppa1_sel <= 1; end
+		10'b0011101110: begin cpu_i <= ppa2_o;  ppa2_sel <= 1; end
+		10'b0011101111: begin cpu_i <= crt_o;   crt_sel  <= 1; end
+		10'b001111XXXX: begin cpu_i <= rom_o;   dma_sel  <= !addrbus[11:8];   end
+		10'b10XXXXXXXX: begin cpu_i <= rom_o;                  end
+
+		// Radio
+		10'b01100XXXXX: begin cpu_i <= ppa1_o;  ppa1_sel <= 1; end
+		10'b0110100XXX: begin cpu_i <= pit_o;   pit_sel  <= 1; end
+		10'b0110101XXX: begin cpu_i <= 0;                      end // sd_o
+		10'b011011XXXX: begin cpu_i <= 0;                      end // ???
+		10'b01110XXXXX: begin cpu_i <= crt_o;   crt_sel  <= 1; end
+		10'b01111XXXXX: begin cpu_i <= rom86_o; dma_sel  <= 1; end
+		10'b11XXXXXXXX: begin cpu_i <= rom86_o;                end
+		
 		default: cpu_i <= ram_dout;
 	endcase
 end
-
-wire pit_we_n  = mode86 ? addrbus[15:11]!=5'b10100|cpu_wr_n : addrbus[15:8]!=8'hEC|cpu_wr_n;
-wire pit_rd_n  = mode86 ? addrbus[15:11]!=5'b10100|~cpu_rd  : addrbus[15:8]!=8'hEC|~cpu_rd;
-wire ppa1_we_n = mode86 ? addrbus[15:13]!=3'b100  |cpu_wr_n : addrbus[15:8]!=8'hED|cpu_wr_n;
-wire ppa2_we_n = mode86 ? 1'b1                              : addrbus[15:8]!=8'hEE|cpu_wr_n;
-wire crt_we_n  = mode86 ? addrbus[15:13]!=3'b110  |cpu_wr_n : addrbus[15:8]!=8'hEF|cpu_wr_n;
-wire crt_rd_n  = mode86 ? addrbus[15:13]!=3'b110  |~cpu_rd  : addrbus[15:8]!=8'hEF|~cpu_rd;
-wire dma_we_n  = mode86 ? addrbus[15:13]!=3'b111  |cpu_wr_n : addrbus[15:8]!=8'hF0|cpu_wr_n;
 
 k580vm80a cpu
 (
@@ -257,16 +260,23 @@ k580vm80a cpu
 );
 
 ////////////////////   VIDEO   ////////////////////
+wire  [3:0] dma_dack;
+wire  [7:0] dma_o;
+wire        hlda;
+wire        dma_rd_n;
+wire        hrq;
+wire        vid_drq;
+wire  [1:0] vid_gattr;
+wire        vid_hilight;
 wire  [7:0] crt_o;
 wire  [3:0] vid_line;
 wire [15:0] vid_addr;
-wire  [3:0] dma_dack;
-wire  [7:0] dma_o;
-wire  [1:0] vid_gattr;
-wire vid_drq,vid_irq,hlda;
-wire vid_hilight;
-wire dma_owe_n,dma_ord_n,dma_oiowe_n,dma_oiord_n;
-wire hrq;
+wire        pix;
+wire  [5:0] bw_pix = {{2{pix}}, {4{pix & vid_hilight}}};
+wire  [5:0] VGA_Rs, VGA_Rd;
+wire  [5:0] VGA_Gs, VGA_Gd;
+wire  [5:0] VGA_Bs, VGA_Bd;
+wire        hsync, vsync, hsyncd, vsyncd;
 
 k580vt57 dma
 (
@@ -276,17 +286,14 @@ k580vt57 dma
 	.iaddr(addrbus[3:0]), 
 	.idata(cpu_o), 
 	.drq({1'b0,vid_drq,2'b00}), 
-	.iwe_n(dma_we_n), 
-	.ird_n(1'b1),
+	.iwe_n(~dma_sel | cpu_wr_n), 
+	.ird_n(1),
 	.hlda(hlda), 
 	.hrq(hrq), 
 	.dack(dma_dack), 
 	.odata(dma_o), 
 	.oaddr(vid_addr),
-	.owe_n(dma_owe_n), 
-	.ord_n(dma_ord_n), 
-	.oiowe_n(dma_oiowe_n), 
-	.oiord_n(dma_oiord_n) 
+	.oiord_n(dma_rd_n) 
 );
 
 k580vg75 crt
@@ -295,26 +302,20 @@ k580vg75 crt
 	.clk_pix(clk_pix),
 	.iaddr(addrbus[0]),
 	.idata(cpu_o),
-	.iwe_n(crt_we_n),
-	.ird_n(crt_rd_n),
+	.iwe_n(~crt_sel | cpu_wr_n),
+	.ird_n(~crt_sel | ~cpu_rd),
 	.vrtc(vsync),
 	.hrtc(hsync),
 	.pix(pix),
 	.dack(dma_dack[2]),
 	.ichar(ram_dout),
 	.drq(vid_drq),
-	.irq(vid_irq),
 	.odata(crt_o),
 	.line(vid_line),
 	.hilight(vid_hilight),
 	.gattr(vid_gattr),
 	.symset(mode86 ? 1'b0 : inte)
 );
-
-wire pix;
-wire [5:0] bw_pix = {{2{pix}}, {4{pix & vid_hilight}}};
-
-wire hsync, vsync;
 
 osd osd 
 (
@@ -328,10 +329,6 @@ osd osd
 	.OSD_HS(hsync),
 	.OSD_VS(vsync)
 );
-
-wire [5:0] VGA_Rs;
-wire [5:0] VGA_Gs;
-wire [5:0] VGA_Bs;
 
 scandoubler scandoubler 
 (
@@ -352,16 +349,9 @@ scandoubler scandoubler
 	.b_out(VGA_Bd)
 );
 
-wire hsyncd, vsyncd;
-wire [5:0] VGA_Rd;
-wire [5:0] VGA_Gd;
-wire [5:0] VGA_Bd;
-
-assign VGA_HS = scandoubler_disable ? ~(hsync ^ vsync) : ~hsyncd;
-assign VGA_VS = scandoubler_disable ? 1'b1 : ~vsyncd;
-assign VGA_R  = scandoubler_disable ? VGA_Rs : VGA_Rd;
-assign VGA_G  = scandoubler_disable ? VGA_Gs : VGA_Gd;
-assign VGA_B  = scandoubler_disable ? VGA_Bs : VGA_Bd;
+assign {VGA_R,  VGA_G,  VGA_B,  VGA_VS,  VGA_HS          } = scandoubler_disable ?
+       {VGA_Rs, VGA_Gs, VGA_Bs, 1'b1,    ~(hsync ^ vsync)} :
+       {VGA_Rd, VGA_Gd, VGA_Bd, ~vsyncd, ~hsyncd         };
 
 ////////////////////   KBD   ////////////////////
 wire [7:0] kbd_o;
@@ -392,7 +382,7 @@ k580vv55 ppa1
 	.clk(clk_sys), 
 	.reset(reset), 
 	.addr(addrbus[1:0]), 
-	.we_n(ppa1_we_n),
+	.we_n(~ppa1_sel | cpu_wr_n),
 	.idata(cpu_o), 
 	.odata(ppa1_o), 
 	.ipa(ppa1_a), 
@@ -403,6 +393,7 @@ k580vv55 ppa1
 	.opc(ppa1_c)
 );
 
+//////////////////   EXTROM PPA   //////////////////
 wire [7:0] ppa2_o;
 wire [7:0] ppa2_b;
 wire [7:0] ppa2_c;
@@ -416,7 +407,7 @@ k580vv55 ppa2
 	.clk(clk_sys), 
 	.reset(reset), 
 	.addr(addrbus[1:0]), 
-	.we_n(ppa2_we_n),
+	.we_n(~ppa2_sel | cpu_wr_n),
 	.idata(cpu_o), 
 	.odata(ppa2_o), 
 	.ipa(ram_dout), 
@@ -440,8 +431,8 @@ k580vi53 pit
 	.clk_sys(clk_sys),
 	.clk_timer({clk_pit,clk_pit,clk_pit}),
 	.addr(addrbus[1:0]),
-	.wr(~pit_we_n),
-	.rd(~pit_rd_n),
+	.wr(pit_sel & ~cpu_wr_n),
+	.rd(pit_sel & cpu_rd),
 	.din(cpu_o),
 	.dout(pit_o),
 	.gate(3'b111),
@@ -457,7 +448,7 @@ sigma_delta_dac #(.MSBI(2)) dac
 	.DACout(AUDIO_L)
 );
 
-//////////////////   EXTROM   //////////////////
+//////////////////   LOADING   //////////////////
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_data;
