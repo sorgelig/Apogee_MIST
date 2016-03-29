@@ -24,11 +24,11 @@ module rk_kbd
 	input     [7:0] addr,
 	output reg[7:0] odata,
 	output    [2:0] shift,
-	output reg[2:0] reset_key = 0
+	output reg[2:0] reset_key = 0,
+	output reg[4:0] alt_dir
 );
 
 reg[7:0] keystate[10:0];
-
 assign shift = keystate[8][2:0];
 
 always @(addr,keystate) begin
@@ -132,7 +132,7 @@ always @(*) begin
 	8'h12: {c,r} = 7'h08; // lshift
 	8'h59: {c,r} = 7'h08; // rshift
 	8'h14: {c,r} = 7'h18; // rctrl + lctrl
-	8'h11: {c,r} = 7'h28; // lalt
+	8'h58: {c,r} = 7'h28; // caps
 
 	default: {c,r} = 7'h7F;
 	endcase
@@ -214,13 +214,24 @@ always @(posedge clk) begin
 					if (kcode==8'h12) mshift <= ~unpress;
 					if (kcode==8'h59) mshift <= ~unpress;
 					if (kcode==8'h78) reset_key <= {(malt & ~unpress), (mshift & ~unpress), ((mctrl | mshift | malt) & ~unpress)};
-					if (kcode==8'hF0) unpress <= 1'b1; else
-					begin
+					if (kcode==8'hF0) unpress <= 1'b1; 
+					else if(!malt) begin
 						unpress <= 0;
 						if(r!=4'hF) keystate[r][c] <= ~unpress;
+					end else begin
+						unpress <= 0;
+						case(kcode)
+							8'h6B: alt_dir[0] <= ~unpress; // left
+							8'h74: alt_dir[1] <= ~unpress; // right
+							8'h75: alt_dir[2] <= ~unpress; // up
+							8'h72: alt_dir[3] <= ~unpress; // down
+							8'h5A: alt_dir[4] <= ~unpress; // enter - reset
+						 default:;
+						endcase
 					end
-				end else
+				end else begin
 					shift_reg <= kdata;
+				end
 			end
 		end else if(auto_strobe) begin
 			mshift <=0;
