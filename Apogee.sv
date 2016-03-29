@@ -12,44 +12,43 @@
 // Based on code from Dmitry Tselikov
 // 
 
-`define WITH_LEDs
-
 module Apogee
 (
-   input  wire [1:0]  CLOCK_27,            // Input clock 27 MHz
+   input         CLOCK_27,  // Input clock 27 MHz
 
-   output wire [5:0]  VGA_R,
-   output wire [5:0]  VGA_G,
-   output wire [5:0]  VGA_B,
-   output wire        VGA_HS,
-   output wire        VGA_VS,
+   output  [5:0] VGA_R,
+   output  [5:0] VGA_G,
+   output  [5:0] VGA_B,
+   output        VGA_HS,
+   output        VGA_VS,
 	 
-   output wire        LED,
+   output        LED,
 
-   output wire        AUDIO_L,
-   output wire        AUDIO_R,
+   output        AUDIO_L,
+   output        AUDIO_R,
 
-   input  wire        SPI_SCK,
-   output wire        SPI_DO,
-   input  wire        SPI_DI,
-   input  wire        SPI_SS2,
-   input  wire        SPI_SS3,
-   input  wire        SPI_SS4,
-   input  wire        CONF_DATA0,
+   input         SPI_SCK,
+   output        SPI_DO,
+   input         SPI_DI,
+   input         SPI_SS2,
+   input         SPI_SS3,
+   input         SPI_SS4,
+   input         CONF_DATA0,
 
-   output wire [12:0] SDRAM_A,
-   inout  wire [15:0] SDRAM_DQ,
-   output wire        SDRAM_DQML,
-   output wire        SDRAM_DQMH,
-   output wire        SDRAM_nWE,
-   output wire        SDRAM_nCAS,
-   output wire        SDRAM_nRAS,
-   output wire        SDRAM_nCS,
-   output wire [1:0]  SDRAM_BA,
-   output wire        SDRAM_CLK,
-   output wire        SDRAM_CKE
+   output [12:0] SDRAM_A,
+   inout  [15:0] SDRAM_DQ,
+   output        SDRAM_DQML,
+   output        SDRAM_DQMH,
+   output        SDRAM_nWE,
+   output        SDRAM_nCAS,
+   output        SDRAM_nRAS,
+   output        SDRAM_nCS,
+   output  [1:0] SDRAM_BA,
+   output        SDRAM_CLK,
+   output        SDRAM_CKE
 );
 
+///////////////////   ARM I/O   //////////////////
 wire [7:0] status;
 wire [1:0] buttons;
 wire scandoubler_disable;
@@ -57,7 +56,10 @@ wire ps2_kbd_clk, ps2_kbd_data;
 
 user_io #(.STRLEN(85)) user_io 
 (
-	.conf_str(     "APOGEE;RKA;F2,RKR;F3,GAM;O1,Color,On,Off;O4,Turbo,Off,On;O5,Autostart,Yes,No;T6,Reset"),
+	.conf_str
+	(
+	     "APOGEE;RKA;F2,RKR;F3,GAM;O1,Color,On,Off;O4,Turbo,Off,On;O5,Autostart,Yes,No;T6,Reset"
+	),
 	.SPI_SCK(SPI_SCK),
 	.CONF_DATA0(CONF_DATA0),
 	.SPI_DO(SPI_DO),
@@ -67,7 +69,7 @@ user_io #(.STRLEN(85)) user_io
 	.buttons(buttons),
 	.scandoubler_disable(scandoubler_disable),
 
-	.ps2_clk(clk_ps2),
+	.ps2_clk(ce_ps2),
 	.ps2_kbd_clk(ps2_kbd_clk),
 	.ps2_kbd_data(ps2_kbd_data)
 );
@@ -78,7 +80,7 @@ wire mode86 = (ioctl_index>1);
 wire locked;
 pll pll
 (
-	.inclk0(CLOCK_27[0]),
+	.inclk0(CLOCK_27),
 	.locked(locked),
 	.c0(clk_ram),
 	.c1(SDRAM_CLK),
@@ -90,11 +92,11 @@ wire clk_ram;       // 72MHz
 reg  clk_io;        // 24MHz
                     //
                     // strobes:
-reg  clk_f1,clk_f2; // 1.78MHz/3.56MHz
-reg  clk_pix;       // 8MHz
-reg  clk_pix2x;     // 16MHz
-reg  clk_pit;       // 1.78MHz
-reg  clk_ps2;       // 14KHz
+reg  ce_f1,ce_f2;   // 1.78MHz/3.56MHz
+reg  ce_pix;        // 8MHz
+reg  ce_pix2x;      // 16MHz
+reg  ce_pit;        // 1.78MHz
+reg  ce_ps2;        // 14KHz
 
 always @(negedge clk_sys) begin
 	reg [2:0] clk_viddiv;
@@ -106,22 +108,21 @@ always @(negedge clk_sys) begin
 
 	clk_viddiv <= clk_viddiv + 1'd1;
 	if(clk_viddiv == 5) clk_viddiv <=0;
-	clk_pix   <= !clk_viddiv;
-	clk_pix2x <= !clk_viddiv || (clk_viddiv == 3);
+	ce_pix   <= !clk_viddiv;
+	ce_pix2x <= !clk_viddiv || (clk_viddiv == 3);
 
 	cpu_div <= cpu_div + 1'd1;
 	if(cpu_div == 27) begin 
 		cpu_div <= 0;
 		turbo <= status[4];
 	end
-	clk_f1 <= ((cpu_div == 0) | (turbo & (cpu_div == 14)));
-	clk_f2 <= ((cpu_div == 2) | (turbo & (cpu_div == 16)));
-
-	clk_pit <= (cpu_div == 4);
+	ce_f1  <= ((cpu_div == 0) | (turbo & (cpu_div == 14)));
+	ce_f2  <= ((cpu_div == 2) | (turbo & (cpu_div == 16)));
+	ce_pit <= (cpu_div == 4);
 
 	ps2_div <= ps2_div+1;
 	if(ps2_div == 3570) ps2_div <=0;
-	clk_ps2 <= !ps2_div;
+	ce_ps2 <= !ps2_div;
 
 	startup <= reset|(startup&~addrbus[15]);
 end
@@ -242,8 +243,8 @@ end
 k580vm80a cpu
 (
    .pin_clk(clk_sys),
-   .pin_f1(clk_f1),
-   .pin_f2(clk_f2),
+   .pin_f1(ce_f1),
+   .pin_f2(ce_f2),
    .pin_reset(reset),
    .pin_a(addrbus),
    .pin_dout(cpu_o),
@@ -260,18 +261,17 @@ k580vm80a cpu
 );
 
 ////////////////////   VIDEO   ////////////////////
-wire  [3:0] dma_dack;
 wire  [7:0] dma_o;
 wire        hlda;
 wire        dma_rd_n;
 wire        hrq;
 wire        vid_drq;
-wire  [1:0] vid_gattr;
-wire        vid_hilight;
+wire        vid_dack;
 wire  [7:0] crt_o;
-wire  [3:0] vid_line;
 wire [15:0] vid_addr;
 wire        pix;
+wire        vid_hilight;
+wire  [1:0] vid_gattr;
 wire  [5:0] bw_pix = {{2{pix}}, {4{pix & vid_hilight}}};
 wire  [5:0] VGA_Rs, VGA_Rd;
 wire  [5:0] VGA_Gs, VGA_Gd;
@@ -281,16 +281,16 @@ wire        hsync, vsync, hsyncd, vsyncd;
 k580vt57 dma
 (
 	.clk(clk_sys), 
-	.dma_ce(clk_f2), 
+	.ce_dma(ce_f2), 
 	.reset(reset),
 	.iaddr(addrbus[3:0]), 
 	.idata(cpu_o), 
-	.drq({1'b0,vid_drq,2'b00}), 
+	.drq ({1'b0,vid_drq, 2'b00}),
+	.dack({1'bZ,vid_dack,2'bZZ}), 
 	.iwe_n(~dma_sel | cpu_wr_n), 
 	.ird_n(1),
 	.hlda(hlda), 
 	.hrq(hrq), 
-	.dack(dma_dack), 
 	.odata(dma_o), 
 	.oaddr(vid_addr),
 	.oiord_n(dma_rd_n) 
@@ -299,27 +299,27 @@ k580vt57 dma
 k580vg75 crt
 (
 	.clk(clk_sys),
-	.clk_pix(clk_pix),
+	.ce_pix(ce_pix),
 	.iaddr(addrbus[0]),
-	.idata(cpu_o),
+	.idata(hlda ? ram_dout : cpu_o),
+	.odata(crt_o),
 	.iwe_n(~crt_sel | cpu_wr_n),
 	.ird_n(~crt_sel | ~cpu_rd),
+	.drq(vid_drq),
+	.dack(vid_dack),
 	.vrtc(vsync),
 	.hrtc(hsync),
 	.pix(pix),
-	.dack(dma_dack[2]),
-	.ichar(ram_dout),
-	.drq(vid_drq),
-	.odata(crt_o),
-	.line(vid_line),
 	.hilight(vid_hilight),
 	.gattr(vid_gattr),
-	.symset(mode86 ? 1'b0 : inte)
+	.charset(mode86 ? 1'b0 : inte),
+	.scr_shift(alt_dir)
 );
 
 osd osd 
 (
 	.*,
+	.clk_pix(ce_pix),
 	.VGA_Rx(status[1] ? bw_pix : {6{pix & ~vid_hilight }}),
 	.VGA_Gx(status[1] ? bw_pix : {6{pix & ~vid_gattr[1]}}),
 	.VGA_Bx(status[1] ? bw_pix : {6{pix & ~vid_gattr[0]}}),
@@ -332,10 +332,10 @@ osd osd
 
 scandoubler scandoubler 
 (
-	.clk_x2(clk_pix2x),
+	.clk_x2(ce_pix2x),
 
 	.scanlines(0),
-		    
+
 	.hs_in(hsync),
 	.vs_in(vsync),
 	.r_in(VGA_Rs),
@@ -357,6 +357,7 @@ assign {VGA_R,  VGA_G,  VGA_B,  VGA_VS,  VGA_HS          } = scandoubler_disable
 wire [7:0] kbd_o;
 wire [2:0] kbd_shift;
 wire [2:0] reset_key;
+wire [4:0] alt_dir;
 
 rk_kbd kbd
 (
@@ -368,7 +369,8 @@ rk_kbd kbd
 	.addr(~ppa1_a), 
 	.odata(kbd_o), 
 	.shift(kbd_shift),
-	.reset_key(reset_key)
+	.reset_key(reset_key),
+	.alt_dir(alt_dir)
 );
 
 ////////////////////   SYS PPA   ////////////////////
@@ -429,7 +431,7 @@ k580vi53 pit
 (
 	.reset(reset),
 	.clk_sys(clk_sys),
-	.clk_timer({clk_pit,clk_pit,clk_pit}),
+	.clk_timer({ce_pit,ce_pit,ce_pit}),
 	.addr(addrbus[1:0]),
 	.wr(pit_sel & ~cpu_wr_n),
 	.rd(pit_sel & cpu_rd),
@@ -455,7 +457,8 @@ wire  [7:0] ioctl_data;
 wire        ioctl_download;
 wire  [4:0] ioctl_index;
 
-data_io data_io(
+data_io data_io
+(
 	.sck(SPI_SCK),
 	.ss(SPI_SS2),
 	.sdi(SPI_DI),

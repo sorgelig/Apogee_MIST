@@ -39,8 +39,8 @@ set_location_assignment PIN_22 -to CLOCK_50[0]
 set_location_assignment PIN_23 -to CLOCK_50[1]
 set_location_assignment PIN_128 -to CLOCK_32[0]
 set_location_assignment PIN_129 -to CLOCK_32[1]
-set_location_assignment PIN_54 -to CLOCK_27[0]
-set_location_assignment PIN_55 -to CLOCK_27[1]
+set_location_assignment PIN_54 -to CLOCK_27
+set_location_assignment PIN_55 -to CLOCK_27_1
 set_location_assignment PIN_144 -to VGA_R[5]
 set_location_assignment PIN_143 -to VGA_R[4]
 set_location_assignment PIN_142 -to VGA_R[3]

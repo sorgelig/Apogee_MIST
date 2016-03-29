@@ -18,7 +18,7 @@
 module k580vt57
 (
 	input         clk,
-	input         dma_ce,
+	input         ce_dma,
 	input         reset,
 	input   [3:0] iaddr,
 	input   [7:0] idata,
@@ -97,7 +97,7 @@ always @(posedge clk or posedge reset) begin
 			endcase
 		end
 
-		if(dma_ce) begin
+		if(ce_dma) begin
 			case (state)
 				ST_IDLE: begin
 					if (|mdrq) state <= ST_WAIT;
