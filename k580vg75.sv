@@ -17,8 +17,9 @@
 
 module k580vg75
 (
-	input        clk,
-	input        ce_pix,
+	input        clk_sys,
+	input        ce_pix_p,
+	input        ce_pix_n,
 
 	input        iaddr,
 	input  [7:0] idata,
@@ -43,7 +44,7 @@ module k580vg75
 parameter CHAR_WIDTH  = 5;
 
 // Font ROM
-font from(.address({charset, ochar[6:0],line[2:0]}), .clock(ce_pix), .q(fdata));
+font from(.address({charset, ochar[6:0],line[2:0]}), .clock(clk_sys), .q(fdata));
 
 assign     odata      = {1'b0,inte,irq,1'b0,err,enable,du,fo};
 assign     gattr      = attr2[3:2];
@@ -78,8 +79,8 @@ reg        err;
 reg        vspfe;
 reg        enable;
 reg        inte;
-reg  [7:0] buf0[79:0];
-reg  [7:0] buf1[79:0];
+reg  [7:0] buf0[80];
+reg  [7:0] buf1[80];
 reg        fo;
 reg        du;
 wire       vcur       = opos=={1'b0,curx} && cury && ypos==cury && (frame[3]|curblink);
@@ -113,19 +114,7 @@ reg  [7:0] gchar[64]  = '{
 									8'b00000000, 8'b00000000, 8'b00000000, 8'b00000000
 								};
 
-always @(negedge ce_pix) begin
-	if(dotn == CHAR_WIDTH) dotn <= 0;
-		else dotn <= dotn+1'b1;
-end
-
-always @(posedge ce_pix) begin
-	if (!dotn) begin 
-		cdata <= vspfe ? 8'd0 : {8{rvv}} ^ (ochar[7] ? gdata : lten ? 8'hFF : (vsp ? 8'b0 : fdata));
-		attr2 <= ochar[7] ? {attr[4:2], 1'b0, ochar[0]} : attr;
-	end else cdata <= {cdata[6:0],1'b0};
-end
-
-always @(posedge clk) begin
+always @(posedge clk_sys) begin
 	reg [5:0] exattr;
 	reg [6:0] ipos;
 	reg [3:0] iposf;
@@ -210,7 +199,7 @@ always @(posedge clk) begin
 		endcase
 	end
 
-	if(!dotn && ce_pix) begin
+	if(!dotn && ce_pix_p) begin
 		if(cur_bs) begin
 			cur_bs <= cur_bs - 1'd1;
 			if(cur_bs == 1) begin
@@ -301,6 +290,17 @@ always @(posedge clk) begin
 			hrtc <= 0;
 			if((ypos2 == (maxy + v_shift + 1'd1 - 4'd8)) && (chline == charheight)) vrtc <= 0;
 		end
+	end
+
+	if(ce_pix_n) begin
+		if(dotn == CHAR_WIDTH) dotn <= 0;
+			else dotn <= dotn+1'b1;
+	end
+	if(ce_pix_p) begin
+		if (!dotn) begin 
+			cdata <= vspfe ? 8'd0 : {8{rvv}} ^ (ochar[7] ? gdata : lten ? 8'hFF : (vsp ? 8'b0 : fdata));
+			attr2 <= ochar[7] ? {attr[4:2], 1'b0, ochar[0]} : attr;
+		end else cdata <= {cdata[6:0],1'b0};
 	end
 end
 
