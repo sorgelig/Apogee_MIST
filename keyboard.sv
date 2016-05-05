@@ -11,10 +11,9 @@
 //
 // Author: Dmitry Tselikov   http://bashkiria-2m.narod.ru/
 // 
-// Design File: rk_kbd.v
 //
 
-module rk_kbd
+module keyboard
 (
 	input           clk,
 	input           reset,
@@ -43,14 +42,14 @@ always @(addr,keystate) begin
 		(keystate[7] & {8{addr[7]}});
 end
 
-reg[2:0] c;
-reg[3:0] r;
-reg unpress;
-reg[3:0] prev_clk;
-reg[11:0] shift_reg;
+reg  [2:0] c;
+reg  [3:0] r;
+reg        unpress;
+reg  [3:0] prev_clk;
+reg [11:0] shift_reg;
 
 wire[11:0] kdata = {ps2_dat,shift_reg[11:1]};
-wire[7:0] kcode = kdata[9:2];
+wire [7:0] kcode = kdata[9:2];
 
 always @(*) begin
 	case (kcode)
@@ -173,7 +172,7 @@ always @(negedge clk) begin
 	integer div;
 	div <= div + 1;
 	auto_strobe <=0;
-	if(div == 3500000) begin 
+	if(div == 7000000) begin 
 		div <=0;
 		auto_strobe <=1;
 	end
