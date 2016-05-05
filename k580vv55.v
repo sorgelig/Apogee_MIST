@@ -19,38 +19,57 @@
 
 module k580vv55
 (
-	input           clk, 
-	input           reset, 
-	input     [1:0] addr, 
+	input           reset,
+	input           clk_sys,
+
+	input     [1:0] addr,
 	input           we_n,
-	input     [7:0] idata, 
-	output    [7:0] odata,
+	input     [7:0] idata,
+	output reg[7:0] odata,
 	input     [7:0] ipa, 
-	output reg[7:0] opa,
+	output    [7:0] opa,
 	input     [7:0] ipb, 
-	output reg[7:0] opb,
+	output    [7:0] opb,
 	input     [7:0] ipc, 
-	output reg[7:0] opc
+	output    [7:0] opc
 );
 
-//reg[6:0] mode;
+reg [7:0] mode;
+reg [7:0] opa_r;
+reg [7:0] opb_r;
+reg [7:0] opc_r;
 
-assign odata = (addr == 0) ? ipa :
-               (addr == 1) ? ipb :
-               (addr == 2) ? ipc : 8'd0;
+assign opa = mode[4] ? 8'hFF : opa_r;
+assign opb = mode[1] ? 8'hFF : opb_r;
+assign opc ={mode[3] ? 4'hF  : opc_r[7:4], mode[0] ? 4'hF : opc_r[3:0]};
 
+always @* begin
+	case(addr) 
+			0: odata = mode[4] ? ipa : opa_r;
+			1: odata = mode[1] ? ipb : opb_r;
+			2: odata ={mode[3] ? ipc[7:4] : opc_r[7:4], mode[0] ? ipc[3:0] : opc_r[3:0]};
+			3: odata = 0;
+	endcase
+end
 
-always @(posedge clk or posedge reset) begin
+always @(posedge clk_sys, posedge reset) begin
+	reg old_we;
+
 	if (reset) begin
-		//mode <= 7'b0011011;
-		{opa,opb,opc} <= {8'hFF,8'hFF,8'hFF};
-	end else
-	if (~we_n) begin
-		if (addr==2'b00) opa <= idata;
-		if (addr==2'b01) opb <= idata;
-		if (addr==2'b10) opc <= idata;
-		//if (addr==2'b11 &&  idata[7]) mode <= idata[6:0];
-		if (addr==2'b11 && ~idata[7]) opc[idata[3:1]] <= idata[0];
+		{opa_r,opb_r,opc_r,mode} <= {8'h00,8'h00,8'h00,8'hFF};
+	end else begin
+		old_we <= we_n;
+		if(old_we & ~we_n) begin
+			case(addr)
+				0: opa_r <= idata;
+				1: opb_r <= idata;
+				2: opc_r <= idata;
+				default: begin
+					if (~idata[7]) opc_r[idata[3:1]] <= idata[0];
+						else {opa_r,opb_r,opc_r,mode} <= {8'h00,8'h00,8'h00,idata};
+				end
+			endcase
+		end
 	end
 end
 
