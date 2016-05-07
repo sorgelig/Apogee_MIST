@@ -81,7 +81,6 @@ mist_io #(.STRLEN(85)) mist_io
 	.buttons(buttons),
 	.scandoubler_disable(scandoubler_disable),
 
-	.ps2_clk(clk_ps2),
 	.ps2_kbd_clk(ps2_kbd_clk),
 	.ps2_kbd_data(ps2_kbd_data),
 
@@ -110,13 +109,11 @@ reg  ce_f1,ce_f2;   // 1.78MHz/3.56MHz
 reg  ce_pix_p;      // 8MHz
 reg  ce_pix_n;      // 8MHz
 reg  ce_pit;        // 1.78MHz
-reg  clk_ps2;       // 14KHz
 
 always @(negedge clk_sys) begin
 	reg [3:0] clk_viddiv;
 	reg [6:0] cpu_div = 0;
-	int ps2_div;
-	reg turbo = 0;
+	reg       turbo = 0;
 
 	clk_viddiv <= clk_viddiv + 1'd1;
 	if(clk_viddiv == 11) clk_viddiv <=0;
@@ -131,12 +128,6 @@ always @(negedge clk_sys) begin
 	ce_f1  <= ((cpu_div == 0)  | (turbo & (cpu_div == 27)));
 	ce_f2  <= ((cpu_div == 13) | (turbo & (cpu_div == 40)));
 	ce_pit <=  (cpu_div == 8);
-
-	ps2_div <= ps2_div+1;
-	if(ps2_div == 3570) begin
-		ps2_div <=0;
-		clk_ps2 <= ~clk_ps2;
-	end
 
 	startup <= reset|(startup&~addrbus[15]);
 end
@@ -467,7 +458,7 @@ k580vi53 pit
 );
 
 assign AUDIO_R = AUDIO_L;
-sigma_delta_dac #(.MSBI(1)) dac
+sigma_delta_dac #(1) dac
 (
 	.CLK(clk_sys),
 	.RESET(reset),
