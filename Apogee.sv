@@ -54,6 +54,7 @@ assign LED = ~(ioctl_download | ioctl_erasing);
 wire  [7:0] status;
 wire  [1:0] buttons;
 wire        scandoubler_disable;
+wire        ypbpr;
 wire        ps2_kbd_clk, ps2_kbd_data;
 
 wire        ioctl_wr;
@@ -80,6 +81,7 @@ mist_io #(.STRLEN(85)) mist_io
 	.status(status),
 	.buttons(buttons),
 	.scandoubler_disable(scandoubler_disable),
+	.ypbpr(ypbpr),
 
 	.ps2_kbd_clk(ps2_kbd_clk),
 	.ps2_kbd_data(ps2_kbd_data),
@@ -356,9 +358,23 @@ scandoubler scandoubler
 	.b_in(B_out)
 );
 
-assign {VGA_R, VGA_G, VGA_B, VGA_VS,  VGA_HS          } = scandoubler_disable ?
-       {R_out, G_out, B_out, 1'b1,    ~(HSync ^ VSync)} :
-       {r_out, g_out, b_out, ~vs_out, ~hs_out         };
+video_mixer video_mixer
+(
+	.*,
+	.ypbpr_full(1),
+
+	.r_i({R_out, R_out[5:4]}),
+	.g_i({G_out, G_out[5:4]}),
+	.b_i({B_out, B_out[5:4]}),
+	.hsync_i(HSync),
+	.vsync_i(VSync),
+
+	.r_p({r_out, r_out[5:4]}),
+	.g_p({g_out, g_out[5:4]}),
+	.b_p({b_out, b_out[5:4]}),
+	.hsync_p(hs_out),
+	.vsync_p(vs_out)
+);
 
 
 ////////////////////   KBD   ////////////////////
