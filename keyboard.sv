@@ -212,8 +212,8 @@ always @(posedge clk) begin
 					if (kcode==8'h14) mctrl  <= ~unpress;
 					if (kcode==8'h12) mshift <= ~unpress;
 					if (kcode==8'h59) mshift <= ~unpress;
-					if (kcode==8'h78) reset_key <= {(malt & ~unpress), (mshift & ~unpress), ((mctrl | mshift | malt) & ~unpress)};
-					if (kcode==8'hF0) unpress <= 1'b1; 
+					if (kcode==8'h78) reset_key <= (~unpress) ? {malt, mshift, mctrl | mshift | malt} : 3'b0;
+					if (kcode==8'hF0) unpress <= 1'b1;
 					else if(!malt) begin
 						unpress <= 0;
 						if(r!=4'hF) keystate[r][c] <= ~unpress;
