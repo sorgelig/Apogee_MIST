@@ -5,7 +5,6 @@ module osd (
 	// OSDs pixel clock, should be synchronous to cores pixel clock to
 	// avoid jitter.
 	input        clk_sys,
-	input        ce_pix,
 
 	// SPI interface
 	input        SPI_SCK,
@@ -38,8 +37,9 @@ localparam OSD_HEIGHT  = 10'd128;
 
 // this core supports only the display related OSD commands
 // of the minimig
-reg        osd_enable;
 (* ramstyle = "no_rw_check" *) reg  [7:0] osd_buffer[2047:0];  // the OSD buffer itself
+
+reg osd_enabled;
 
 // the OSD has its own SPI interface to the io controller
 always@(posedge SPI_SCK, posedge SPI_SS3) begin
@@ -65,7 +65,7 @@ always@(posedge SPI_SCK, posedge SPI_SS3) begin
 			bcnt <= {sbuf[1:0], SPI_DI, 8'h00};
 
 			// command 0x40: OSDCMDENABLE, OSDCMDDISABLE
-			if(sbuf[6:3] == 4'b0100) osd_enable <= SPI_DI;
+			if(sbuf[6:3] == 4'b0100) osd_enabled <= SPI_DI;
 		end
 
 		// command 0x20: OSDCMDWRITE
@@ -91,6 +91,29 @@ reg  [9:0] v_cnt;
 reg  [9:0] vs_low, vs_high;
 wire       vs_pol = vs_high < vs_low;
 wire [9:0] dsp_height = vs_pol ? vs_low : vs_high;
+
+wire doublescan = (dsp_height>350); 
+
+reg ce_pix;
+always @(negedge clk_sys) begin
+	integer cnt = 0;
+	integer pixsz, pixcnt;
+	reg hs;
+
+	cnt <= cnt + 1;
+	hs <= HSync;
+
+	pixcnt <= pixcnt + 1;
+	if(pixcnt == pixsz) pixcnt <= 0;
+	ce_pix <= !pixcnt;
+
+	if(hs && ~HSync) begin
+		cnt    <= 0;
+		pixsz  <= (cnt >> 9) - 1;
+		pixcnt <= 0;
+		ce_pix <= 1;
+	end
+end
 
 always @(posedge clk_sys) begin
 	reg hsD, hsD2;
@@ -136,19 +159,19 @@ end
 // area in which OSD is being displayed
 wire [9:0] h_osd_start = ((dsp_width - OSD_WIDTH)>> 1) + OSD_X_OFFSET;
 wire [9:0] h_osd_end   = h_osd_start + OSD_WIDTH;
-wire [9:0] v_osd_start = ((dsp_height- OSD_HEIGHT)>> 1) + OSD_Y_OFFSET;
-wire [9:0] v_osd_end   = v_osd_start + OSD_HEIGHT;
+wire [9:0] v_osd_start = ((dsp_height- (OSD_HEIGHT<<doublescan))>> 1) + OSD_Y_OFFSET;
+wire [9:0] v_osd_end   = v_osd_start + (OSD_HEIGHT<<doublescan);
 wire [9:0] osd_hcnt    = h_cnt - h_osd_start + 1'd1;  // one pixel offset for osd_byte register
 wire [9:0] osd_vcnt    = v_cnt - v_osd_start;
 
-wire osd_de = osd_enable && 
+wire osd_de = osd_enabled && 
               (HSync != hs_pol) && (h_cnt >= h_osd_start) && (h_cnt < h_osd_end) &&
               (VSync != vs_pol) && (v_cnt >= v_osd_start) && (v_cnt < v_osd_end);
 
 reg  [7:0] osd_byte; 
-always @(posedge clk_sys) if(ce_pix) osd_byte <= osd_buffer[{osd_vcnt[6:4], osd_hcnt[7:0]}];
+always @(posedge clk_sys) if(ce_pix) osd_byte <= osd_buffer[{doublescan ? osd_vcnt[7:5] : osd_vcnt[6:4], osd_hcnt[7:0]}];
 
-wire osd_pixel = osd_byte[osd_vcnt[3:1]];
+wire osd_pixel = osd_byte[doublescan ? osd_vcnt[4:2] : osd_vcnt[3:1]];
 
 assign R_out = !osd_de ? R_in : {osd_pixel, osd_pixel, OSD_COLOR[2], R_in[5:3]};
 assign G_out = !osd_de ? G_in : {osd_pixel, osd_pixel, OSD_COLOR[1], G_in[5:3]};

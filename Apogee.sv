@@ -51,7 +51,7 @@ assign LED = ~(ioctl_download | ioctl_erasing);
 
 
 ///////////////////   ARM I/O   //////////////////
-wire  [7:0] status;
+wire [31:0] status;
 wire  [1:0] buttons;
 wire        scandoubler_disable;
 wire        ypbpr;
@@ -62,16 +62,26 @@ wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_data;
 wire        ioctl_download;
 wire        ioctl_erasing;
-wire  [4:0] ioctl_index;
+wire  [7:0] ioctl_index;
 
-mist_io #(.STRLEN(85)) mist_io 
+`include "build_id.v"
+localparam CONF_STR = 
+{
+	"APOGEE;RKARKRGAM;",
+	"O1,Color,On,Off;",
+	"O23,Scandoubler Fx,None,CRT 25%,CRT 50%,CRT 75%;",
+	"O4,CPU speed,Normal,Double;",
+	"O5,Autostart,Yes,No;",
+	"T6,Reset;",
+	"V,v2.50.",`BUILD_DATE
+};
+
+mist_io #(.STRLEN(($size(CONF_STR)>>3))) mist_io 
 (
 	.clk_sys(clk_sys),
 
-	.conf_str
-	(
-	     "APOGEE;RKA;F2,RKR;F3,GAM;O1,Color,On,Off;O4,Turbo,Off,On;O5,Autostart,Yes,No;T6,Reset"
-	),
+	.conf_str(CONF_STR),
+
 	.SPI_SCK(SPI_SCK),
 	.CONF_DATA0(CONF_DATA0),
 	.SPI_SS2(SPI_SS2),
@@ -108,8 +118,7 @@ pll pll
 
 wire clk_sys;       // 96Mhz
 reg  ce_f1,ce_f2;   // 1.78MHz/3.56MHz
-reg  ce_pix_p;      // 8MHz
-reg  ce_pix_n;      // 8MHz
+reg  ce_pix;        // 8MHz
 reg  ce_pit;        // 1.78MHz
 
 always @(negedge clk_sys) begin
@@ -119,8 +128,7 @@ always @(negedge clk_sys) begin
 
 	clk_viddiv <= clk_viddiv + 1'd1;
 	if(clk_viddiv == 11) clk_viddiv <=0;
-	ce_pix_p <= (clk_viddiv == 0);
-	ce_pix_n <= (clk_viddiv == 6);
+	ce_pix <= (clk_viddiv == 0);
 
 	cpu_div <= cpu_div + 1'd1;
 	if(cpu_div == 53) begin 
@@ -318,8 +326,7 @@ k580vt57 dma
 k580vg75 crt
 (
 	.clk_sys(clk_sys),
-	.ce_pix_p(ce_pix_p),
-	.ce_pix_n(ce_pix_n),
+	.ce_pix(ce_pix),
 	.iaddr(addrbus[0]),
 	.idata(hlda ? ram_dout : cpu_o),
 	.odata(crt_o),
@@ -336,44 +343,15 @@ k580vg75 crt
 	.scr_shift(alt_dir)
 );
 
-osd #(10'd0,10'd0,3'd4) osd
-(
-	.*,
-	.ce_pix(ce_pix_p),
-	.R_in(status[1] ? bw_pix : {6{pix & ~vid_hilight }}),
-	.G_in(status[1] ? bw_pix : {6{pix & ~vid_gattr[1]}}),
-	.B_in(status[1] ? bw_pix : {6{pix & ~vid_gattr[0]}})
-);
-
-scandoubler scandoubler 
-(
-	.*,
-	.ce_x2(ce_pix_p | ce_pix_n),
-	.ce_x1(ce_pix_p),
-	.scanlines(0),
-	.hs_in(HSync),
-	.vs_in(VSync),
-	.r_in(R_out),
-	.g_in(G_out),
-	.b_in(B_out)
-);
-
 video_mixer video_mixer
 (
 	.*,
+	.scanlines(scandoubler_disable ? 2'b00 : status[3:2]),
 	.ypbpr_full(1),
 
-	.r_i({R_out, R_out[5:4]}),
-	.g_i({G_out, G_out[5:4]}),
-	.b_i({B_out, B_out[5:4]}),
-	.hsync_i(HSync),
-	.vsync_i(VSync),
-
-	.r_p({r_out, r_out[5:4]}),
-	.g_p({g_out, g_out[5:4]}),
-	.b_p({b_out, b_out[5:4]}),
-	.hsync_p(hs_out),
-	.vsync_p(vs_out)
+	.R(status[1] ? bw_pix : {6{pix & ~vid_hilight }}),
+	.G(status[1] ? bw_pix : {6{pix & ~vid_gattr[1]}}),
+	.B(status[1] ? bw_pix : {6{pix & ~vid_gattr[0]}})
 );
 
 
